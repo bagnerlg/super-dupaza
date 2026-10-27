@@ -1,65 +1,73 @@
-# SUPER DUPAZA 5.26.3 — PostgreSQL Sync Shadow Test
+# SUPER DUPAZA 5.26.4 — Queue -> PostgreSQL
 
-## Estado previo validado
-- Dashboard normal: PostgreSQL primario.
-- D1 fallback: activo.
-- Escritura PostgreSQL: validada con BEGIN/ROLLBACK.
-- Cron: todavía deshabilitados.
+## Cambio principal
+El consumidor de Queue `super-dupaza-sync` ya NO ejecuta el sync pesado contra D1.
 
-## Qué agrega esta fase
-Un sync manual protegido que ejecuta la lógica actual de:
-- ZasConnect
-- BO / VT
-- loaded_refs
-- report_orders
-- sync_state
+Ahora ejecuta:
 
-pero escribiendo en Supabase/PostgreSQL por Hyperdrive.
+Queue
+-> runQueuedSync()
+-> syncIncrementalToPostgres()
+-> pg
+-> Hyperdrive
+-> Supabase PostgreSQL
+-> schema super_dupaza
 
-## Importante
-La Queue normal TODAVÍA ejecuta el flujo D1.
-No se recrean Cron.
-No se elimina DB.
+## Comportamiento de errores
+Si PostgreSQL falla:
+- se registra QUEUE_ERROR en super_dupaza.sync_state
+- el error se vuelve a lanzar
+- Cloudflare Queue aplica retry
 
-## Endpoint de prueba
-POST /api/postgres-sync-test?days=7
+NO se hace fallback silencioso a D1 en el consumer.
+
+## D1
+El binding DB se mantiene temporalmente porque:
+- todavía hay endpoints administrativos/legacy
+- sirve de respaldo estático durante la transición
+
+El sync pesado de Queue ya no actualiza D1.
+
+## Cron
+Todavía NO se incluyen Cron triggers.
+Primero se valida manualmente Queue -> PostgreSQL.
+
+## Prueba manual de Queue
+POST /api/postgres-queue-test
 
 Header:
 X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
 
-El sync PostgreSQL corre dentro de una transacción.
-Si ocurre un error:
-ROLLBACK.
+PowerShell:
 
-Si termina:
-COMMIT.
-
-El endpoint NO modifica D1.
-
-## Estado después de la prueba
-GET /api/postgres-sync-state
-
-También requiere X-Super-Dupaza-Admin.
-
-## PowerShell
 $token = "TU_D1_SYNC_TOKEN"
 
 Invoke-RestMethod `
   -Method POST `
-  -Uri "https://super-dupaza.bagnerlg.workers.dev/api/postgres-sync-test?days=7" `
+  -Uri "https://super-dupaza.bagnerlg.workers.dev/api/postgres-queue-test" `
   -Headers @{"X-Super-Dupaza-Admin"=$token}
 
-Resultado esperado:
+Debe responder inmediatamente:
 - ok: True
+- queued: True
+- engine: POSTGRESQL
+
+Luego consultar:
+
+Invoke-RestMethod `
+  -Uri "https://super-dupaza.bagnerlg.workers.dev/api/postgres-sync-state" `
+  -Headers @{"X-Super-Dupaza-Admin"=$token} |
+  ConvertTo-Json -Depth 10
+
+En syncState, SCHEDULER debe terminar con:
+- event: QUEUE_SUCCESS
 - engine: POSTGRESQL
 - via: HYPERDRIVE
-- transactionCommitted: True
-- queueSwitched: False
-- d1Modified: False
+- last_error: null
 
-Después validar:
-- /api/source/status
-- /api/summary
-- /api/not-loaded
+## Después
+Si Queue manual pasa, Fase 5.26.5 reactivará los Cron:
+- */5 * * * *
+- 17 12 * * *
 
-Si esto pasa, Fase 5.26.4 cambia el Queue consumer a PostgreSQL.
+y PostgreSQL quedará como motor automático principal.

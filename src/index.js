@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.3 - POSTGRES SYNC SHADOW TEST - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.4 - QUEUE -> POSTGRESQL - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -1013,6 +1013,111 @@ export default {
 
 
       // --------------------------------------------------------
+      // TEST MANUAL DE QUEUE -> POSTGRESQL
+      // En Fase 5.26.4 el consumidor de super-dupaza-sync
+      // ejecuta directamente syncIncrementalToPostgres().
+      // --------------------------------------------------------
+
+      if (
+        url.pathname ===
+          "/api/postgres-queue-test" &&
+        request.method ===
+          "POST"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error:
+                auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        if (
+          !env.SUPER_DUPAZA_SYNC_QUEUE
+        ) {
+
+          return json(
+            {
+              ok:
+                false,
+
+              stage:
+                "PRODUCER_BINDING",
+
+              error:
+                "Falta SUPER_DUPAZA_SYNC_QUEUE."
+            },
+            500
+          );
+
+        }
+
+
+        const payload = {
+          type:
+            "SUPER_DUPAZA_POSTGRES_QUEUE_TEST",
+
+          cron:
+            "MANUAL_POSTGRES_QUEUE_TEST",
+
+          days:
+            7,
+
+          scheduledAt:
+            new Date()
+              .toISOString(),
+
+          enqueuedAt:
+            new Date()
+              .toISOString()
+        };
+
+
+        await env
+          .SUPER_DUPAZA_SYNC_QUEUE
+          .send(
+            payload
+          );
+
+
+        return json({
+          ok:
+            true,
+
+          queued:
+            true,
+
+          queue:
+            "super-dupaza-sync",
+
+          engine:
+            "POSTGRESQL",
+
+          days:
+            7,
+
+          note:
+            "Mensaje enviado. El consumer ejecutará PostgreSQL/Hyperdrive."
+        });
+
+      }
+
+
+      // --------------------------------------------------------
       // TEST MANUAL DE QUEUE
       // --------------------------------------------------------
 
@@ -1181,7 +1286,7 @@ export default {
             "SUPER_DUPAZA_SYNC_QUEUE",
 
           message:
-            "Mensaje de prueba enviado. Revisa logs tipo queue y /api/d1/cron-status."
+            "Mensaje enviado. El consumer actual procesa PostgreSQL/Hyperdrive; revisa /api/postgres-sync-state."
         });
 
       }
@@ -1999,6 +2104,178 @@ async function enqueueScheduledSync(
 
 
 
+async function pgSchedulerWrite(
+  env,
+  {
+    mode,
+    startedAt,
+    successAt = null,
+    recordsSeen = 0,
+    recordsChanged = 0,
+    metadata = {},
+    lastError = null
+  }
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      if (
+        mode ===
+        "START"
+      ) {
+
+        await client.query(
+`INSERT INTO super_dupaza.sync_state (
+  source,
+  last_started_at,
+  last_success_at,
+  records_seen,
+  records_changed,
+  metadata_json,
+  last_error
+)
+VALUES (
+  'SCHEDULER',
+  $1,
+  NULL,
+  0,
+  0,
+  $2,
+  NULL
+)
+ON CONFLICT(source)
+DO UPDATE SET
+  last_started_at =
+    EXCLUDED.last_started_at,
+  metadata_json =
+    EXCLUDED.metadata_json,
+  last_error =
+    NULL`,
+          [
+            startedAt,
+            JSON.stringify(
+              metadata
+            )
+          ]
+        );
+
+
+        return;
+
+      }
+
+
+      if (
+        mode ===
+        "SUCCESS"
+      ) {
+
+        await client.query(
+`INSERT INTO super_dupaza.sync_state (
+  source,
+  last_started_at,
+  last_success_at,
+  records_seen,
+  records_changed,
+  metadata_json,
+  last_error
+)
+VALUES (
+  'SCHEDULER',
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  NULL
+)
+ON CONFLICT(source)
+DO UPDATE SET
+  last_started_at =
+    EXCLUDED.last_started_at,
+  last_success_at =
+    EXCLUDED.last_success_at,
+  records_seen =
+    EXCLUDED.records_seen,
+  records_changed =
+    EXCLUDED.records_changed,
+  metadata_json =
+    EXCLUDED.metadata_json,
+  last_error =
+    NULL`,
+          [
+            startedAt,
+            successAt,
+            Number(
+              recordsSeen ||
+              0
+            ),
+            Number(
+              recordsChanged ||
+              0
+            ),
+            JSON.stringify(
+              metadata
+            )
+          ]
+        );
+
+
+        return;
+
+      }
+
+
+      await client.query(
+`INSERT INTO super_dupaza.sync_state (
+  source,
+  last_started_at,
+  records_seen,
+  records_changed,
+  metadata_json,
+  last_error
+)
+VALUES (
+  'SCHEDULER',
+  $1,
+  0,
+  0,
+  $2,
+  $3
+)
+ON CONFLICT(source)
+DO UPDATE SET
+  last_started_at =
+    EXCLUDED.last_started_at,
+  metadata_json =
+    EXCLUDED.metadata_json,
+  last_error =
+    EXCLUDED.last_error`,
+        [
+          startedAt,
+          JSON.stringify(
+            metadata
+          ),
+          String(
+            lastError ||
+            ""
+          )
+            .slice(
+              0,
+              4000
+            )
+        ]
+      );
+
+    }
+  );
+
+}
+
+
+
 async function runQueuedSync(
   job,
   env
@@ -2028,54 +2305,47 @@ async function runQueuedSync(
       : 7;
 
 
+  const baseMetadata = {
+    cron,
+    days,
+
+    scheduledAt:
+      job?.scheduledAt ||
+      null,
+
+    enqueuedAt:
+      job?.enqueuedAt ||
+      null,
+
+    engine:
+      "POSTGRESQL",
+
+    via:
+      "HYPERDRIVE"
+  };
+
+
   try {
 
-    await env.DB
-      .prepare(
-`INSERT INTO sync_state (
-  source,
-  last_started_at,
-  last_success_at,
-  records_seen,
-  records_changed,
-  metadata_json,
-  last_error
-)
-VALUES (
-  'SCHEDULER',
-  ?1,
-  NULL,
-  0,
-  0,
-  ?2,
-  NULL
-)
-ON CONFLICT(source)
-DO UPDATE SET
-  last_started_at = excluded.last_started_at,
-  metadata_json = excluded.metadata_json,
-  last_error = NULL`
-      )
-      .bind(
+    await pgSchedulerWrite(
+      env,
+      {
+        mode:
+          "START",
+
         startedAt,
-        JSON.stringify({
-          cron,
-          days,
+
+        metadata: {
+          ...baseMetadata,
           event:
-            "QUEUE_START",
-          scheduledAt:
-            job?.scheduledAt ||
-            null,
-          enqueuedAt:
-            job?.enqueuedAt ||
-            null
-        })
-      )
-      .run();
+            "QUEUE_START"
+        }
+      }
+    );
 
 
     const result =
-      await syncIncrementalToD1(
+      await syncIncrementalToPostgres(
         env,
         days
       );
@@ -2086,54 +2356,79 @@ DO UPDATE SET
         .toISOString();
 
 
-    await env.DB
-      .prepare(
-`UPDATE sync_state
- SET last_success_at = ?1,
-     records_seen = ?2,
-     records_changed = ?3,
-     metadata_json = ?4,
-     last_error = NULL
- WHERE source = 'SCHEDULER'`
-      )
-      .bind(
-        finishedAt,
-        Number(
-          result?.zasConnect?.ordersSeen ||
-          0
-        ),
-        Number(
-          result?.zasConnect?.changedOrders ||
-          0
-        ),
-        JSON.stringify({
-          cron,
-          days,
+    const syncResult =
+      result?.sync ||
+      {};
+
+
+    await pgSchedulerWrite(
+      env,
+      {
+        mode:
+          "SUCCESS",
+
+        startedAt,
+
+        successAt:
+          finishedAt,
+
+        recordsSeen:
+          Number(
+            syncResult
+              ?.zasConnect
+              ?.ordersSeen ||
+            0
+          ),
+
+        recordsChanged:
+          Number(
+            syncResult
+              ?.zasConnect
+              ?.changedOrders ||
+            0
+          ),
+
+        metadata: {
+          ...baseMetadata,
+
           event:
             "QUEUE_SUCCESS",
-          scheduledAt:
-            job?.scheduledAt ||
-            null,
-          enqueuedAt:
-            job?.enqueuedAt ||
-            null,
-          d1QueriesEstimated:
+
+          transactionCommitted:
+            Boolean(
+              result
+                ?.transactionCommitted
+            ),
+
+          d1Modified:
+            Boolean(
+              result
+                ?.d1Modified
+            ),
+
+          dbQueriesEstimated:
             Number(
-              result?.d1QueriesEstimated ||
+              syncResult
+                ?.d1QueriesEstimated ||
               0
             )
-        })
-      )
-      .run();
+        }
+      }
+    );
 
 
     console.log(
-      "SUPER DUPAZA queue sync OK",
+      "SUPER DUPAZA queue PostgreSQL sync OK",
       {
         cron,
         days,
         startedAt,
-        finishedAt
+        finishedAt,
+        transactionCommitted:
+          Boolean(
+            result
+              ?.transactionCommitted
+          )
       }
     );
 
@@ -2158,48 +2453,25 @@ DO UPDATE SET
 
     try {
 
-      await env.DB
-        .prepare(
-`INSERT INTO sync_state (
-  source,
-  last_started_at,
-  records_seen,
-  records_changed,
-  metadata_json,
-  last_error
-)
-VALUES (
-  'SCHEDULER',
-  ?1,
-  0,
-  0,
-  ?2,
-  ?3
-)
-ON CONFLICT(source)
-DO UPDATE SET
-  last_started_at = excluded.last_started_at,
-  metadata_json = excluded.metadata_json,
-  last_error = excluded.last_error`
-        )
-        .bind(
+      await pgSchedulerWrite(
+        env,
+        {
+          mode:
+            "ERROR",
+
           startedAt,
-          JSON.stringify({
-            cron,
-            days,
+
+          metadata: {
+            ...baseMetadata,
             event:
               "QUEUE_ERROR",
-            scheduledAt:
-              job?.scheduledAt ||
-              null,
-            enqueuedAt:
-              job?.enqueuedAt ||
-              null,
             failedAt
-          }),
-          message
-        )
-        .run();
+          },
+
+          lastError:
+            message
+        }
+      );
 
     } catch {
       // No ocultar el error original.
@@ -2207,7 +2479,7 @@ DO UPDATE SET
 
 
     console.error(
-      "SUPER DUPAZA queue sync ERROR",
+      "SUPER DUPAZA queue PostgreSQL sync ERROR",
       {
         cron,
         days,
@@ -2217,7 +2489,7 @@ DO UPDATE SET
     );
 
 
-    // Muy importante: propagar el error para que Queue aplique retry.
+    // Propagar para que Cloudflare Queue aplique retry.
     throw error;
 
   }
