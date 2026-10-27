@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.1 - POSTGRES SHADOW READS - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.2 - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -186,6 +186,46 @@ export default {
 
 
       // --------------------------------------------------------
+      // POSTGRES - WRITE SMOKE TEST
+      // Hace UPDATE sin cambio dentro de transacción y ROLLBACK.
+      // --------------------------------------------------------
+
+      if (
+        url.pathname === "/api/postgres-write-smoke" &&
+        request.method === "GET"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error:
+                auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        return json(
+          await postgresWriteSmokeTest(
+            env
+          )
+        );
+
+      }
+
+
+      // --------------------------------------------------------
       // POSTGRES SHADOW READS
       // Estas rutas NO sustituyen todavía las rutas D1 normales.
       // Sirven para validar salida equivalente desde Supabase.
@@ -362,8 +402,10 @@ export default {
       if (url.pathname === "/api/source/status") {
 
         return json(
-          await d1PublicStatus(
-            env
+          await pgFirstRead(
+            "source/status",
+            () => pgPublicStatus(env),
+            () => d1PublicStatus(env)
           )
         );
 
@@ -380,8 +422,10 @@ export default {
       if (url.pathname === "/api/not-loaded") {
 
         return json(
-          await d1NotLoadedDashboard(
-            env
+          await pgFirstRead(
+            "not-loaded",
+            () => pgNotLoadedDashboard(env),
+            () => d1NotLoadedDashboard(env)
           )
         );
 
@@ -400,8 +444,10 @@ export default {
       ) {
 
         return json(
-          await reportConfigGet(
-            env
+          await pgFirstRead(
+            "report-config",
+            () => pgReportConfigGet(env),
+            () => reportConfigGet(env)
           )
         );
 
@@ -441,7 +487,7 @@ export default {
 
 
         return json(
-          await reportConfigSaveLabels(
+          await dualReportConfigSaveLabels(
             env,
             body
           )
@@ -462,8 +508,10 @@ export default {
       ) {
 
         return json(
-          await pendingNameRulesList(
-            env
+          await pgFirstRead(
+            "name-normalization/list",
+            () => pgPendingNameRulesList(env),
+            () => pendingNameRulesList(env)
           )
         );
 
@@ -503,7 +551,7 @@ export default {
 
 
         return json(
-          await pendingNameRuleSave(
+          await dualPendingNameRuleSave(
             env,
             body
           )
@@ -545,7 +593,7 @@ export default {
 
 
         return json(
-          await pendingNameRuleDelete(
+          await dualPendingNameRuleDelete(
             env,
             body?.id
           )
@@ -566,9 +614,10 @@ export default {
       ) {
 
         return json(
-          await sellerTargetsList(
-            env,
-            url.searchParams
+          await pgFirstRead(
+            "seller-targets",
+            () => pgSellerTargetsList(env, url.searchParams),
+            () => sellerTargetsList(env, url.searchParams)
           )
         );
 
@@ -608,7 +657,7 @@ export default {
 
 
         return json(
-          await sellerTargetsSave(
+          await dualSellerTargetsSave(
             env,
             body
           )
@@ -712,8 +761,10 @@ export default {
       ) {
 
         return json(
-          await manualSapList(
-            env
+          await pgFirstRead(
+            "manual-sap/list",
+            () => pgManualSapList(env),
+            () => manualSapList(env)
           )
         );
 
@@ -753,7 +804,7 @@ export default {
 
 
         return json(
-          await manualSapMark(
+          await dualManualSapMark(
             env,
             body?.trackingCode
           )
@@ -795,7 +846,7 @@ export default {
 
 
         return json(
-          await manualSapResolve(
+          await dualManualSapResolve(
             env,
             body?.trackingCode
           )
@@ -814,9 +865,10 @@ export default {
       if (url.pathname === "/api/summary") {
 
         return json(
-          await d1Summary(
-            env,
-            url.searchParams
+          await pgFirstRead(
+            "summary",
+            () => pgSummary(env, url.searchParams),
+            () => d1Summary(env, url.searchParams)
           )
         );
 
@@ -836,9 +888,10 @@ export default {
       ) {
 
         return json(
-          await d1AdvisorSummary(
-            env,
-            url.searchParams
+          await pgFirstRead(
+            "advisor-summary",
+            () => pgAdvisorSummary(env, url.searchParams),
+            () => d1AdvisorSummary(env, url.searchParams)
           )
         );
 
@@ -855,8 +908,10 @@ export default {
       ) {
 
         return json(
-          await d1ReportOptions(
-            env
+          await pgFirstRead(
+            "report-options",
+            () => pgReportOptions(env),
+            () => d1ReportOptions(env)
           )
         );
 
@@ -13990,6 +14045,1643 @@ exportBtn.addEventListener(
 }
 
 
+
+
+
+// ============================================================
+// POSTGRES PRIMARY READS + DUAL CONTROL WRITES
+// ============================================================
+
+async function postgresWriteSmokeTest(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query("BEGIN");
+
+
+      try {
+
+        const result =
+          await client.query(
+`UPDATE super_dupaza.report_group_labels
+SET display_name = display_name
+WHERE level = 'K1'
+RETURNING level, display_name`
+          );
+
+
+        await client.query("ROLLBACK");
+
+
+        return {
+          ok: true,
+          writePermission:
+            true,
+          rolledBack:
+            true,
+          rowsTouched:
+            result.rowCount,
+          sample:
+            result.rows[0] ||
+            null,
+          note:
+            "La prueba se revirtió con ROLLBACK; no modificó datos persistentes."
+        };
+
+      } catch (error) {
+
+        try {
+          await client.query("ROLLBACK");
+        } catch {}
+
+
+        return {
+          ok: false,
+          writePermission:
+            false,
+          rolledBack:
+            true,
+          code:
+            error?.code ||
+            null,
+          error:
+            error?.message ||
+            String(error)
+        };
+
+      }
+
+    }
+  );
+
+}
+
+
+
+async function pgFirstRead(
+  label,
+  pgCallback,
+  d1Callback
+) {
+
+  try {
+
+    const result =
+      await pgCallback();
+
+
+    if (
+      result &&
+      typeof result === "object"
+    ) {
+
+      return {
+        ...result,
+        databasePrimary:
+          "POSTGRESQL",
+        fallbackUsed:
+          false
+      };
+
+    }
+
+
+    return result;
+
+  } catch (error) {
+
+    console.error(
+      "PG_FIRST_READ_FALLBACK",
+      label,
+      error?.message ||
+      String(error)
+    );
+
+
+    const fallback =
+      await d1Callback();
+
+
+    if (
+      fallback &&
+      typeof fallback === "object"
+    ) {
+
+      return {
+        ...fallback,
+        databasePrimary:
+          "D1_FALLBACK",
+        fallbackUsed:
+          true,
+        postgresError:
+          error?.message ||
+          String(error)
+      };
+
+    }
+
+
+    return fallback;
+
+  }
+
+}
+
+
+async function pgReportConfigSaveLabels(
+  env,
+  body
+) {
+
+  const incoming =
+    body?.labels ||
+    {};
+
+
+  const values = {
+    K1:
+      String(
+        incoming.K1 ??
+        ""
+      ).trim(),
+    K2:
+      String(
+        incoming.K2 ??
+        ""
+      ).trim(),
+    K3:
+      String(
+        incoming.K3 ??
+        ""
+      ).trim()
+  };
+
+
+  for (
+    const level
+    of [
+      "K1",
+      "K2",
+      "K3"
+    ]
+  ) {
+
+    if (!values[level]) {
+
+      throw new Error(
+        "Los nombres visuales K1, K2 y K3 son obligatorios."
+      );
+
+    }
+
+  }
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query(
+        "BEGIN"
+      );
+
+
+      try {
+
+        for (
+          let index = 0;
+          index < 3;
+          index++
+        ) {
+
+          const level =
+            [
+              "K1",
+              "K2",
+              "K3"
+            ][index];
+
+
+          await client.query(
+`INSERT INTO super_dupaza.report_group_labels (
+  level,
+  display_name,
+  sort_order,
+  updated_at
+)
+VALUES ($1,$2,$3,$4)
+ON CONFLICT(level)
+DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  sort_order = EXCLUDED.sort_order,
+  updated_at = EXCLUDED.updated_at`,
+            [
+              level,
+              values[level],
+              index + 1,
+              now
+            ]
+          );
+
+        }
+
+
+        await client.query(
+          "COMMIT"
+        );
+
+      } catch (error) {
+
+        await client.query(
+          "ROLLBACK"
+        );
+
+        throw error;
+
+      }
+
+
+      return {
+        ok: true,
+        labels:
+          values,
+        message:
+          "Nombres visuales guardados.",
+        databasePrimary:
+          "POSTGRESQL"
+      };
+
+    }
+  );
+
+}
+
+
+async function dualReportConfigSaveLabels(
+  env,
+  body
+) {
+
+  const primary =
+    await pgReportConfigSaveLabels(
+      env,
+      body
+    );
+
+
+  try {
+
+    await reportConfigSaveLabels(
+      env,
+      body
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_REPORT_CONFIG_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
+
+
+async function pgSellerTargetsSavePrimary(
+  env,
+  body
+) {
+
+  const month =
+    validTargetMonth(
+      body?.month
+    );
+
+
+  const incoming =
+    Array.isArray(
+      body?.targets
+    )
+      ? body.targets
+      : [];
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query(
+        "BEGIN"
+      );
+
+
+      let saved = 0;
+
+
+      try {
+
+        for (
+          const item
+          of incoming
+        ) {
+
+          const seller =
+            String(
+              item?.seller ||
+              ""
+            ).trim();
+
+
+          const sellerKey =
+            normalizeMatchText(
+              seller
+            );
+
+
+          const amount =
+            Number(
+              item?.amount ||
+              0
+            );
+
+
+          if (
+            !seller ||
+            !sellerKey ||
+            !Number.isFinite(amount) ||
+            amount < 0
+          ) {
+            continue;
+          }
+
+
+          if (amount <= 0) {
+
+            await client.query(
+`DELETE FROM super_dupaza.seller_monthly_targets
+WHERE seller_key = $1
+  AND month = $2`,
+              [
+                sellerKey,
+                month
+              ]
+            );
+
+            saved++;
+            continue;
+
+          }
+
+
+          await client.query(
+`INSERT INTO super_dupaza.seller_monthly_targets (
+  seller_key,
+  seller_name,
+  month,
+  target_amount,
+  updated_at
+)
+VALUES ($1,$2,$3,$4,$5)
+ON CONFLICT(seller_key, month)
+DO UPDATE SET
+  seller_name = EXCLUDED.seller_name,
+  target_amount = EXCLUDED.target_amount,
+  updated_at = EXCLUDED.updated_at`,
+            [
+              sellerKey,
+              seller,
+              month,
+              round2(amount),
+              now
+            ]
+          );
+
+          saved++;
+
+        }
+
+
+        await client.query(
+          "COMMIT"
+        );
+
+      } catch (error) {
+
+        await client.query(
+          "ROLLBACK"
+        );
+
+        throw error;
+
+      }
+
+
+      return {
+        ok: true,
+        month,
+        saved,
+        message:
+          "Metas mensuales guardadas.",
+        databasePrimary:
+          "POSTGRESQL"
+      };
+
+    }
+  );
+
+}
+
+
+async function dualSellerTargetsSave(
+  env,
+  body
+) {
+
+  const primary =
+    await pgSellerTargetsSavePrimary(
+      env,
+      body
+    );
+
+
+  try {
+
+    await sellerTargetsSave(
+      env,
+      body
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_SELLER_TARGETS_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
+
+
+async function pgManualSapMarkPrimary(
+  env,
+  trackingValue
+) {
+
+  const tracking =
+    requireTrackingCode(
+      trackingValue
+    );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      const orderResult =
+        await client.query(
+`SELECT
+  tracking_code,
+  customer_name,
+  seller_name,
+  order_date,
+  order_total
+FROM super_dupaza.zas_orders
+WHERE tracking_code = $1`,
+          [
+            tracking
+          ]
+        );
+
+
+      const order =
+        orderResult.rows[0];
+
+
+      if (!order) {
+
+        throw new Error(
+          "La orden no existe en zas_orders."
+        );
+
+      }
+
+
+      await client.query(
+`INSERT INTO super_dupaza.manual_sap_control (
+  tracking_code,
+  status,
+  marked_sap_at,
+  resolved_at,
+  updated_at,
+  customer_name,
+  seller_name,
+  order_date,
+  order_total
+)
+VALUES (
+  $1,
+  'EN_SAP',
+  $2,
+  NULL,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6
+)
+ON CONFLICT(tracking_code)
+DO UPDATE SET
+  status = 'EN_SAP',
+  marked_sap_at = CASE
+    WHEN super_dupaza.manual_sap_control.marked_sap_at IS NULL
+    THEN EXCLUDED.marked_sap_at
+    ELSE super_dupaza.manual_sap_control.marked_sap_at
+  END,
+  resolved_at = NULL,
+  updated_at = EXCLUDED.updated_at,
+  customer_name = EXCLUDED.customer_name,
+  seller_name = EXCLUDED.seller_name,
+  order_date = EXCLUDED.order_date,
+  order_total = EXCLUDED.order_total`,
+        [
+          tracking,
+          now,
+          order.customer_name,
+          order.seller_name,
+          order.order_date,
+          numberValue(
+            order.order_total
+          )
+        ]
+      );
+
+
+      return {
+        ok: true,
+        trackingCode:
+          tracking,
+        status:
+          "EN_SAP",
+        message:
+          "Orden movida a Control SAP.",
+        databasePrimary:
+          "POSTGRESQL"
+      };
+
+    }
+  );
+
+}
+
+
+async function dualManualSapMark(
+  env,
+  trackingValue
+) {
+
+  const primary =
+    await pgManualSapMarkPrimary(
+      env,
+      trackingValue
+    );
+
+
+  try {
+
+    await manualSapMark(
+      env,
+      trackingValue
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_MANUAL_SAP_MARK_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
+
+
+async function pgManualSapResolvePrimary(
+  env,
+  trackingValue
+) {
+
+  const tracking =
+    requireTrackingCode(
+      trackingValue
+    );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      const result =
+        await client.query(
+`UPDATE super_dupaza.manual_sap_control
+SET
+  status = 'RESUELTO',
+  resolved_at = $2,
+  updated_at = $2
+WHERE tracking_code = $1
+RETURNING tracking_code`,
+          [
+            tracking,
+            now
+          ]
+        );
+
+
+      if (!result.rows.length) {
+
+        throw new Error(
+          "La orden no está en Control SAP."
+        );
+
+      }
+
+
+      return {
+        ok: true,
+        trackingCode:
+          tracking,
+        status:
+          "RESUELTO",
+        virtualLoaded:
+          true,
+        message:
+          "Orden resuelta. Se considera cargada aunque no exista físicamente en BO/VT.",
+        databasePrimary:
+          "POSTGRESQL"
+      };
+
+    }
+  );
+
+}
+
+
+async function dualManualSapResolve(
+  env,
+  trackingValue
+) {
+
+  const primary =
+    await pgManualSapResolvePrimary(
+      env,
+      trackingValue
+    );
+
+
+  try {
+
+    await manualSapResolve(
+      env,
+      trackingValue
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_MANUAL_SAP_RESOLVE_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
+
+
+async function pgRebuildSellerReportMatch(
+  client
+) {
+
+  const result =
+    await client.query(
+`SELECT
+  n.id,
+  n.canonical_name,
+  n.alias1,
+  n.alias2,
+  n.alias3,
+  n.alias4,
+  n.alias5,
+  c.k_level,
+  c.segment,
+  c.updated_at
+FROM super_dupaza.pending_name_normalization AS n
+JOIN super_dupaza.seller_report_rule_rows AS c
+  ON c.normalization_id = n.id
+WHERE c.k_level IS NOT NULL
+   OR c.segment IS NOT NULL
+ORDER BY n.id`
+    );
+
+
+  const rows =
+    result.rows ||
+    [];
+
+
+  const canonicalCounts =
+    new Map();
+
+
+  for (const row of rows) {
+
+    const key =
+      normText(
+        row.canonical_name
+      );
+
+    canonicalCounts.set(
+      key,
+      (
+        canonicalCounts.get(key) ||
+        0
+      ) + 1
+    );
+
+  }
+
+
+  const canonicalOwner =
+    new Map();
+
+
+  for (const row of rows) {
+
+    const key =
+      normText(
+        row.canonical_name
+      );
+
+
+    if (
+      canonicalCounts.get(key) === 1
+    ) {
+
+      canonicalOwner.set(
+        key,
+        Number(row.id)
+      );
+
+      continue;
+
+    }
+
+
+    const nonCanonicalAliases =
+      [
+        row.alias1,
+        row.alias2,
+        row.alias3,
+        row.alias4,
+        row.alias5
+      ]
+        .map(normText)
+        .filter(
+          value =>
+            value &&
+            value !== key
+        );
+
+
+    if (
+      !canonicalOwner.has(key) &&
+      nonCanonicalAliases.length === 0
+    ) {
+
+      canonicalOwner.set(
+        key,
+        Number(row.id)
+      );
+
+    }
+
+  }
+
+
+  for (const row of rows) {
+
+    const key =
+      normText(
+        row.canonical_name
+      );
+
+
+    if (!canonicalOwner.has(key)) {
+
+      canonicalOwner.set(
+        key,
+        Number(row.id)
+      );
+
+    }
+
+  }
+
+
+  const matches =
+    new Map();
+
+
+  for (const row of rows) {
+
+    const canonicalKey =
+      normText(
+        row.canonical_name
+      );
+
+
+    const candidates = [];
+
+
+    if (
+      canonicalOwner.get(canonicalKey) ===
+      Number(row.id)
+    ) {
+
+      candidates.push(
+        row.canonical_name
+      );
+
+    }
+
+
+    candidates.push(
+      row.alias1,
+      row.alias2,
+      row.alias3,
+      row.alias4,
+      row.alias5
+    );
+
+
+    for (const value of candidates) {
+
+      const key =
+        normText(value);
+
+      if (!key) {
+        continue;
+      }
+
+
+      matches.set(
+        key,
+        {
+          match_key:
+            key,
+          normalization_id:
+            Number(row.id),
+          canonical_name:
+            row.canonical_name,
+          k_level:
+            row.k_level ||
+            null,
+          segment:
+            row.segment ||
+            null,
+          updated_at:
+            row.updated_at ||
+            new Date().toISOString()
+        }
+      );
+
+    }
+
+  }
+
+
+  await client.query(
+    "DELETE FROM super_dupaza.seller_report_match"
+  );
+
+
+  for (
+    const item
+    of matches.values()
+  ) {
+
+    await client.query(
+`INSERT INTO super_dupaza.seller_report_match (
+  match_key,
+  normalization_id,
+  canonical_name,
+  k_level,
+  segment,
+  updated_at
+)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT(match_key)
+DO UPDATE SET
+  normalization_id = EXCLUDED.normalization_id,
+  canonical_name = EXCLUDED.canonical_name,
+  k_level = EXCLUDED.k_level,
+  segment = EXCLUDED.segment,
+  updated_at = EXCLUDED.updated_at`,
+      [
+        item.match_key,
+        item.normalization_id,
+        item.canonical_name,
+        item.k_level,
+        item.segment,
+        item.updated_at
+      ]
+    );
+
+  }
+
+
+  return {
+    count:
+      matches.size
+  };
+
+}
+
+
+async function pgPendingNameRuleSavePrimary(
+  env,
+  body
+) {
+
+  const id =
+    Number(
+      body?.id ||
+      0
+    );
+
+
+  const canonical =
+    String(
+      body?.canonical ??
+      ""
+    ).trim();
+
+
+  const aliases =
+    (
+      Array.isArray(body?.aliases)
+        ? body.aliases
+        : []
+    )
+      .map(
+        value =>
+          String(value ?? "")
+            .trim()
+      )
+      .filter(Boolean)
+      .filter(
+        (value, index, values) =>
+          values.findIndex(
+            candidate =>
+              normalizeMatchText(candidate) ===
+              normalizeMatchText(value)
+          ) === index
+      )
+      .filter(
+        value =>
+          normalizeMatchText(value) !==
+          normalizeMatchText(canonical)
+      )
+      .slice(0, 5);
+
+
+  if (!canonical) {
+
+    throw new Error(
+      "Escribe el nombre final de la normalización."
+    );
+
+  }
+
+
+  const padded =
+    [
+      ...aliases,
+      "",
+      "",
+      "",
+      "",
+      ""
+    ].slice(0, 5);
+
+
+  const kLevel =
+    validReportK(
+      body?.kLevel
+    );
+
+
+  const segment =
+    validReportSegment(
+      body?.segment
+    );
+
+
+  const now =
+    new Date().toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query("BEGIN");
+
+
+      try {
+
+        let savedId =
+          id;
+
+
+        if (id > 0) {
+
+          const existing =
+            await client.query(
+`SELECT id
+FROM super_dupaza.pending_name_normalization
+WHERE id = $1`,
+              [id]
+            );
+
+
+          if (!existing.rows.length) {
+
+            throw new Error(
+              "La normalización ya no existe. Recarga la tabla."
+            );
+
+          }
+
+
+          await client.query(
+`UPDATE super_dupaza.pending_name_normalization
+SET
+  canonical_name = $2,
+  alias1 = $3,
+  alias2 = $4,
+  alias3 = $5,
+  alias4 = $6,
+  alias5 = $7,
+  updated_at = $8
+WHERE id = $1`,
+            [
+              id,
+              canonical,
+              padded[0] || null,
+              padded[1] || null,
+              padded[2] || null,
+              padded[3] || null,
+              padded[4] || null,
+              now
+            ]
+          );
+
+        } else {
+
+          const inserted =
+            await client.query(
+`INSERT INTO super_dupaza.pending_name_normalization (
+  canonical_name,
+  alias1,
+  alias2,
+  alias3,
+  alias4,
+  alias5,
+  created_at,
+  updated_at
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
+RETURNING id`,
+              [
+                canonical,
+                padded[0] || null,
+                padded[1] || null,
+                padded[2] || null,
+                padded[3] || null,
+                padded[4] || null,
+                now
+              ]
+            );
+
+          savedId =
+            Number(
+              inserted.rows[0]?.id ||
+              0
+            );
+
+        }
+
+
+        if (!kLevel && !segment) {
+
+          await client.query(
+`DELETE FROM super_dupaza.seller_report_rule_rows
+WHERE normalization_id = $1`,
+            [savedId]
+          );
+
+        } else {
+
+          await client.query(
+`INSERT INTO super_dupaza.seller_report_rule_rows (
+  normalization_id,
+  k_level,
+  segment,
+  updated_at
+)
+VALUES ($1,$2,$3,$4)
+ON CONFLICT(normalization_id)
+DO UPDATE SET
+  k_level = EXCLUDED.k_level,
+  segment = EXCLUDED.segment,
+  updated_at = EXCLUDED.updated_at`,
+            [
+              savedId,
+              kLevel,
+              segment,
+              now
+            ]
+          );
+
+        }
+
+
+        await pgRebuildSellerReportMatch(
+          client
+        );
+
+
+        await client.query(
+`INSERT INTO super_dupaza.sync_state (
+  source,
+  last_success_at,
+  records_changed,
+  metadata_json
+)
+VALUES (
+  'NAME_NORMALIZATION',
+  $1,
+  1,
+  $2
+)
+ON CONFLICT(source)
+DO UPDATE SET
+  last_success_at = EXCLUDED.last_success_at,
+  records_changed = super_dupaza.sync_state.records_changed + 1,
+  metadata_json = EXCLUDED.metadata_json`,
+          [
+            now,
+            JSON.stringify({
+              lastAction:
+                "SAVE",
+              maxAliasesPerRow:
+                5
+            })
+          ]
+        );
+
+
+        await client.query("COMMIT");
+
+
+        return {
+          ok: true,
+          id:
+            savedId,
+          canonical,
+          aliases,
+          kLevel,
+          segment,
+          message:
+            "Normalización y clasificación guardadas.",
+          databasePrimary:
+            "POSTGRESQL"
+        };
+
+      } catch (error) {
+
+        await client.query("ROLLBACK");
+        throw error;
+
+      }
+
+    }
+  );
+
+}
+
+
+async function mirrorPendingNameRuleToD1(
+  env,
+  saved
+) {
+
+  if (!env.DB) {
+    return false;
+  }
+
+
+  const now =
+    new Date().toISOString();
+
+
+  const padded =
+    [
+      ...(saved.aliases || []),
+      "",
+      "",
+      "",
+      "",
+      ""
+    ].slice(0, 5);
+
+
+  await env.DB
+    .prepare(
+`INSERT INTO pending_name_normalization (
+  id,
+  canonical_name,
+  alias1,
+  alias2,
+  alias3,
+  alias4,
+  alias5,
+  created_at,
+  updated_at
+)
+VALUES (
+  ?1,?2,?3,?4,?5,?6,?7,?8,?8
+)
+ON CONFLICT(id)
+DO UPDATE SET
+  canonical_name = excluded.canonical_name,
+  alias1 = excluded.alias1,
+  alias2 = excluded.alias2,
+  alias3 = excluded.alias3,
+  alias4 = excluded.alias4,
+  alias5 = excluded.alias5,
+  updated_at = excluded.updated_at`
+    )
+    .bind(
+      saved.id,
+      saved.canonical,
+      padded[0] || null,
+      padded[1] || null,
+      padded[2] || null,
+      padded[3] || null,
+      padded[4] || null,
+      now
+    )
+    .run();
+
+
+  await saveSellerReportRuleForNormalization(
+    env,
+    saved.id,
+    saved.kLevel,
+    saved.segment
+  );
+
+
+  await env.DB
+    .prepare(
+`UPDATE sync_state
+SET
+  last_success_at = ?1,
+  records_changed = records_changed + 1,
+  metadata_json = ?2
+WHERE source = 'NAME_NORMALIZATION'`
+    )
+    .bind(
+      now,
+      JSON.stringify({
+        lastAction:
+          "SAVE",
+        maxAliasesPerRow:
+          5
+      })
+    )
+    .run();
+
+
+  return true;
+
+}
+
+
+async function dualPendingNameRuleSave(
+  env,
+  body
+) {
+
+  const primary =
+    await pgPendingNameRuleSavePrimary(
+      env,
+      body
+    );
+
+
+  try {
+
+    await mirrorPendingNameRuleToD1(
+      env,
+      primary
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_NAME_RULE_SAVE_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
+
+
+async function pgPendingNameRuleDeletePrimary(
+  env,
+  idValue
+) {
+
+  const id =
+    Number(
+      idValue ||
+      0
+    );
+
+
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+
+    throw new Error(
+      "ID de normalización inválido."
+    );
+
+  }
+
+
+  const now =
+    new Date().toISOString();
+
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query("BEGIN");
+
+
+      try {
+
+        await client.query(
+`DELETE FROM super_dupaza.seller_report_match
+WHERE normalization_id = $1`,
+          [id]
+        );
+
+
+        await client.query(
+`DELETE FROM super_dupaza.seller_report_rule_rows
+WHERE normalization_id = $1`,
+          [id]
+        );
+
+
+        const deleted =
+          await client.query(
+`DELETE FROM super_dupaza.pending_name_normalization
+WHERE id = $1
+RETURNING id`,
+            [id]
+          );
+
+
+        await pgRebuildSellerReportMatch(
+          client
+        );
+
+
+        await client.query(
+`INSERT INTO super_dupaza.sync_state (
+  source,
+  last_success_at,
+  records_changed,
+  metadata_json
+)
+VALUES (
+  'NAME_NORMALIZATION',
+  $1,
+  1,
+  $2
+)
+ON CONFLICT(source)
+DO UPDATE SET
+  last_success_at = EXCLUDED.last_success_at,
+  records_changed = super_dupaza.sync_state.records_changed + 1,
+  metadata_json = EXCLUDED.metadata_json`,
+          [
+            now,
+            JSON.stringify({
+              lastAction:
+                "DELETE",
+              maxAliasesPerRow:
+                5
+            })
+          ]
+        );
+
+
+        await client.query("COMMIT");
+
+
+        return {
+          ok: true,
+          id,
+          deleted:
+            deleted.rows.length > 0,
+          message:
+            "Normalización eliminada.",
+          databasePrimary:
+            "POSTGRESQL"
+        };
+
+      } catch (error) {
+
+        await client.query("ROLLBACK");
+        throw error;
+
+      }
+
+    }
+  );
+
+}
+
+
+async function dualPendingNameRuleDelete(
+  env,
+  idValue
+) {
+
+  const primary =
+    await pgPendingNameRuleDeletePrimary(
+      env,
+      idValue
+    );
+
+
+  try {
+
+    await pendingNameRuleDelete(
+      env,
+      idValue
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        true
+    };
+
+  } catch (error) {
+
+    console.error(
+      "D1_MIRROR_NAME_RULE_DELETE_FAILED",
+      error?.message ||
+      String(error)
+    );
+
+    return {
+      ...primary,
+      mirroredToD1:
+        false,
+      mirrorWarning:
+        error?.message ||
+        String(error)
+    };
+
+  }
+
+}
 
 
 // ============================================================

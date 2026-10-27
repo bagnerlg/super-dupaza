@@ -1,54 +1,83 @@
-# SUPER DUPAZA 5.26.1 — PostgreSQL Shadow Reads
+# SUPER DUPAZA 5.26.2 — PostgreSQL Primary Reads + Dual Control Writes
 
-Esta fase NO cambia las rutas normales del dashboard.
+## Qué cambia
+Las rutas normales del dashboard ahora intentan PostgreSQL primero y usan D1 solo como fallback:
 
-## D1 sigue activo
-Las rutas originales:
 - /api/source/status
 - /api/not-loaded
 - /api/report-config
 - /api/name-normalization/list
 - /api/seller-targets
-- /api/manual-api-import/list
 - /api/manual-sap/list
 - /api/summary
 - /api/advisor-summary
 - /api/report-options
 
-siguen usando D1.
+Cuando PostgreSQL responde correctamente, la respuesta incluye:
+- databasePrimary: "POSTGRESQL"
+- fallbackUsed: false
 
-## Nuevas rutas PostgreSQL
-- /api/pg/source/status
-- /api/pg/not-loaded
-- /api/pg/report-config
-- /api/pg/name-normalization/list
-- /api/pg/seller-targets
-- /api/pg/manual-api-import/list
-- /api/pg/manual-sap/list
-- /api/pg/summary
-- /api/pg/advisor-summary
-- /api/pg/report-options
+Si PostgreSQL falla:
+- usa D1
+- databasePrimary: "D1_FALLBACK"
+- fallbackUsed: true
 
-Las rutas PG leen exclusivamente:
-Worker -> pg -> Hyperdrive -> Supabase -> super_dupaza
+## Escrituras de control en doble escritura
+PostgreSQL es primario y D1 queda como espejo temporal para:
+- POST /api/report-config/labels
+- POST /api/name-normalization/save
+- POST /api/name-normalization/delete
+- POST /api/seller-targets/save
+- POST /api/manual-sap/mark
+- POST /api/manual-sap/resolve
 
-## Pruebas recomendadas
-1. /api/pg/source/status
-2. /api/pg/report-options
-3. /api/pg/summary?date_from=2026-10-01&date_to=2026-10-27
-4. /api/pg/advisor-summary?date_from=2026-10-01&date_to=2026-10-27
-5. /api/pg/not-loaded
+Las respuestas pueden incluir:
+- mirroredToD1: true
+- mirroredToD1: false + mirrorWarning si el espejo D1 falla
 
-Todas deben devolver:
-"source": "POSTGRESQL"
+## Aún sigue en D1
+- Sincronización BO/VT
+- Sincronización ZasConnect
+- manual API importer
+- Queue pesada de sincronización
+- cualquier tarea de reconstrucción que todavía no haya sido migrada
 
-## Seguridad
-/api/pg/manual-api-import/list conserva el header X-Super-Dupaza-Admin.
+## Cron
+NO se incluyen Cron triggers. Deben seguir deshabilitados durante esta fase.
 
-## Importante
-No recrear Cron todavía.
-No eliminar DB.
-No cambiar todavía las rutas normales a PostgreSQL.
+## Prueba segura de escritura PostgreSQL
+Endpoint:
+GET /api/postgres-write-smoke
 
-Después de validar estas lecturas, 5.26.2 moverá cada módulo con sus escrituras
-correspondientes para evitar divergencia D1/Supabase.
+Header:
+X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
+
+La prueba ejecuta:
+BEGIN
+UPDATE sin cambio
+ROLLBACK
+
+Resultado esperado:
+{
+  "ok": true,
+  "writePermission": true,
+  "rolledBack": true,
+  "rowsTouched": 1
+}
+
+No deja cambios persistentes.
+
+## Validación recomendada después del deploy
+1. /api/postgres-write-smoke (con header)
+2. /api/summary?date_from=2026-10-01&date_to=2026-10-27
+3. /api/advisor-summary?date_from=2026-10-01&date_to=2026-10-27
+4. /api/not-loaded
+5. Abrir dashboard normal
+
+En las rutas normales esperamos:
+databasePrimary = POSTGRESQL
+fallbackUsed = false
+
+## Nota sobre alias y metas
+La aparición de metas bajo alias como ALEJANDRA SIAN / ERICK SIQUIBACHE / YESSICA CARRERA
+ya existe en la lógica D1 original. Se conserva intencionalmente durante la migración.
