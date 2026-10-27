@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.0 - GITHUB BASELINE + POSTGRES SMOKE - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.1 - POSTGRES SHADOW READS - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -177,6 +177,177 @@ export default {
 
         return json(
           await postgresSmokeTest(
+            env
+          )
+        );
+
+      }
+
+
+
+      // --------------------------------------------------------
+      // POSTGRES SHADOW READS
+      // Estas rutas NO sustituyen todavía las rutas D1 normales.
+      // Sirven para validar salida equivalente desde Supabase.
+      // --------------------------------------------------------
+
+      if (
+        url.pathname === "/api/pg/source/status" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgPublicStatus(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/not-loaded" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgNotLoadedDashboard(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/report-config" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgReportConfigGet(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/name-normalization/list" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgPendingNameRulesList(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/seller-targets" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgSellerTargetsList(
+            env,
+            url.searchParams
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/manual-api-import/list" &&
+        request.method === "GET"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error:
+                auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        return json(
+          await pgManualApiImportList(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/manual-sap/list" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgManualSapList(
+            env
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/summary" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgSummary(
+            env,
+            url.searchParams
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/advisor-summary" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgAdvisorSummary(
+            env,
+            url.searchParams
+          )
+        );
+
+      }
+
+
+      if (
+        url.pathname === "/api/pg/report-options" &&
+        request.method === "GET"
+      ) {
+
+        return json(
+          await pgReportOptions(
             env
           )
         );
@@ -13818,6 +13989,2607 @@ exportBtn.addEventListener(
 
 }
 
+
+
+
+// ============================================================
+// POSTGRES SHADOW READS
+// ============================================================
+
+async function withPg(
+  env,
+  callback
+) {
+
+  if (
+    !env.HYPERDRIVE ||
+    !env.HYPERDRIVE.connectionString
+  ) {
+
+    throw new Error(
+      "HYPERDRIVE no está disponible."
+    );
+
+  }
+
+
+  const client =
+    new Client({
+      connectionString:
+        env.HYPERDRIVE.connectionString
+    });
+
+
+  try {
+
+    await client.connect();
+
+    return await callback(
+      client
+    );
+
+  } finally {
+
+    try {
+
+      await client.end();
+
+    } catch {}
+
+  }
+
+}
+
+
+
+function pgBuildReportFilter(
+  params,
+  groupColumn =
+    "group_name",
+  segmentColumn =
+    "order_type"
+) {
+
+  const {
+    from,
+    to
+  } =
+    d1RequireDateRange(
+      params
+    );
+
+
+  const values = [
+    from,
+    to
+  ];
+
+
+  const conditions = [
+    "report_date BETWEEN $1 AND $2"
+  ];
+
+
+  const filters = [
+    [
+      "group",
+      groupColumn
+    ],
+    [
+      "advisor",
+      "advisor"
+    ],
+    [
+      "type",
+      segmentColumn
+    ],
+    [
+      "source",
+      "source"
+    ]
+  ];
+
+
+  for (
+    const [
+      param,
+      column
+    ]
+    of filters
+  ) {
+
+    const value =
+      String(
+        params.get(
+          param
+        ) ||
+        ""
+      )
+        .trim();
+
+
+    if (!value) {
+      continue;
+    }
+
+
+    values.push(
+      value
+    );
+
+
+    conditions.push(
+      `${column} = $${values.length}`
+    );
+
+  }
+
+
+  return {
+    from,
+    to,
+    where:
+      conditions.join(
+        "\nAND "
+      ),
+    values
+  };
+
+}
+
+
+
+async function pgGetReportGroupLabels(
+  client
+) {
+
+  const result =
+    await client.query(
+`SELECT
+  level,
+  display_name,
+  sort_order
+FROM super_dupaza.report_group_labels
+ORDER BY sort_order, level`
+    );
+
+
+  const labels = {
+    K1: "K1",
+    K2: "K2",
+    K3: "K3"
+  };
+
+
+  for (
+    const row
+    of result.rows
+  ) {
+
+    if (
+      labels[
+        row.level
+      ] !==
+      undefined
+    ) {
+
+      labels[
+        row.level
+      ] =
+        String(
+          row.display_name ||
+          row.level
+        );
+
+    }
+
+  }
+
+
+  return {
+    labels,
+    rows:
+      result.rows
+  };
+
+}
+
+
+
+async function pgPendingNameRules(
+  client
+) {
+
+  const result =
+    await client.query(
+`SELECT
+  n.id,
+  n.canonical_name,
+  n.alias1,
+  n.alias2,
+  n.alias3,
+  n.alias4,
+  n.alias5,
+  c.k_level,
+  c.segment
+
+FROM super_dupaza.pending_name_normalization AS n
+
+LEFT JOIN super_dupaza.seller_report_rule_rows AS c
+  ON c.normalization_id =
+     n.id
+
+ORDER BY
+  LOWER(n.canonical_name),
+  n.id`
+    );
+
+
+  return result.rows
+    .map(
+      pendingNameRowToRule
+    );
+
+}
+
+
+
+async function pgSellerTargetsForRange(
+  client,
+  from,
+  to
+) {
+
+  const months =
+    rangeMonthKeys(
+      from,
+      to
+    );
+
+
+  if (
+    !months.length
+  ) {
+
+    return {
+      targets:
+        new Map(),
+      sellers:
+        new Map()
+    };
+
+  }
+
+
+  const placeholders =
+    months
+      .map(
+        (_, index) =>
+          "$" +
+          (
+            index + 1
+          )
+      )
+      .join(",");
+
+
+  const result =
+    await client.query(
+`SELECT
+  seller_key,
+  seller_name,
+  month,
+  target_amount
+FROM super_dupaza.seller_monthly_targets
+WHERE month IN (${placeholders})`,
+      months
+    );
+
+
+  const map =
+    new Map();
+
+  const sellers =
+    new Map();
+
+
+  for (
+    const row
+    of result.rows
+  ) {
+
+    if (
+      !map.has(
+        row.seller_key
+      )
+    ) {
+
+      map.set(
+        row.seller_key,
+        new Map()
+      );
+
+    }
+
+
+    map.get(
+      row.seller_key
+    )
+      .set(
+        row.month,
+        numberValue(
+          row.target_amount
+        )
+      );
+
+
+    if (
+      !sellers.has(
+        row.seller_key
+      )
+    ) {
+
+      sellers.set(
+        row.seller_key,
+        row.seller_name ||
+        row.seller_key
+      );
+
+    }
+
+  }
+
+
+  return {
+    targets:
+      map,
+    sellers
+  };
+
+}
+
+
+
+async function pgSummaryTargetsByLevel(
+  client,
+  params,
+  from,
+  to
+) {
+
+  const targetInfo =
+    await pgSellerTargetsForRange(
+      client,
+      from,
+      to
+    );
+
+
+  const matchResult =
+    await client.query(
+`SELECT
+  match_key,
+  k_level,
+  segment
+FROM super_dupaza.seller_report_match`
+    );
+
+
+  const classification =
+    new Map(
+      matchResult.rows
+        .map(
+          row => [
+            row.match_key,
+            {
+              level:
+                row.k_level ||
+                "K3",
+              segment:
+                row.segment ||
+                "DIGITAL"
+            }
+          ]
+        )
+    );
+
+
+  const selectedGroup =
+    String(
+      params.get(
+        "group"
+      ) ||
+      ""
+    )
+      .trim();
+
+
+  const selectedAdvisor =
+    normalizeMatchText(
+      params.get(
+        "advisor"
+      ) ||
+      ""
+    );
+
+
+  const selectedSegment =
+    String(
+      params.get(
+        "type"
+      ) ||
+      ""
+    )
+      .trim();
+
+
+  const totals = {
+    K1: 0,
+    K2: 0,
+    K3: 0
+  };
+
+
+  for (
+    const [
+      sellerKey,
+      sellerName
+    ]
+    of targetInfo.sellers.entries()
+  ) {
+
+    if (
+      selectedAdvisor &&
+      selectedAdvisor !==
+        sellerKey
+    ) {
+      continue;
+    }
+
+
+    const rule =
+      classification.get(
+        sellerKey
+      ) ||
+      {
+        level:
+          "K3",
+        segment:
+          "DIGITAL"
+      };
+
+
+    const level =
+      [
+        "K1",
+        "K2",
+        "K3"
+      ]
+        .includes(
+          rule.level
+        )
+          ? rule.level
+          : "K3";
+
+
+    const segment =
+      [
+        "DIGITAL",
+        "PETAPA",
+        "XENACOJ"
+      ]
+        .includes(
+          rule.segment
+        )
+          ? rule.segment
+          : "DIGITAL";
+
+
+    if (
+      selectedGroup &&
+      selectedGroup !==
+        level
+    ) {
+      continue;
+    }
+
+
+    if (
+      selectedSegment &&
+      selectedSegment !==
+        segment
+    ) {
+      continue;
+    }
+
+
+    totals[
+      level
+    ] +=
+      proratedTargetForRange(
+        sellerName,
+        from,
+        to,
+        targetInfo.targets
+      );
+
+  }
+
+
+  return {
+    K1:
+      round2(
+        totals.K1
+      ),
+    K2:
+      round2(
+        totals.K2
+      ),
+    K3:
+      round2(
+        totals.K3
+      )
+  };
+
+}
+
+
+
+async function pgPublicStatus(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const syncResult =
+        await client.query(
+`SELECT
+  source,
+  last_started_at,
+  last_success_at,
+  range_from,
+  range_to,
+  records_seen,
+  records_changed,
+  metadata_json,
+  last_error
+FROM super_dupaza.sync_state
+ORDER BY source`
+        );
+
+
+      const orderResult =
+        await client.query(
+          "SELECT COUNT(*)::bigint AS n FROM super_dupaza.zas_orders"
+        );
+
+
+      const states =
+        syncResult.rows;
+
+
+      const bySource =
+        new Map(
+          states.map(
+            row => [
+              row.source,
+              row
+            ]
+          )
+        );
+
+
+      const bo =
+        bySource.get(
+          "BO_VT"
+        ) ||
+        {};
+
+
+      const zas =
+        bySource.get(
+          "ZASCONNECT"
+        ) ||
+        {};
+
+
+      const reports =
+        bySource.get(
+          "REPORTS"
+        ) ||
+        {};
+
+
+      const scheduler =
+        bySource.get(
+          "SCHEDULER"
+        ) ||
+        {};
+
+
+      let schedulerMeta = {};
+      let boMeta = {};
+
+
+      try {
+
+        schedulerMeta =
+          JSON.parse(
+            scheduler.metadata_json ||
+            "{}"
+          );
+
+      } catch {}
+
+
+      try {
+
+        boMeta =
+          JSON.parse(
+            bo.metadata_json ||
+            "{}"
+          );
+
+      } catch {}
+
+
+      const lastSyncAt =
+        [
+          bo.last_success_at,
+          zas.last_success_at,
+          reports.last_success_at
+        ]
+          .filter(Boolean)
+          .sort()
+          .at(-1) ||
+        null;
+
+
+      const ageMinutes =
+        lastSyncAt
+          ? Math.max(
+              0,
+              Math.round(
+                (
+                  Date.now() -
+                  new Date(
+                    lastSyncAt
+                  ).getTime()
+                ) /
+                60000
+              )
+            )
+          : null;
+
+
+      const schedulerLastSuccess =
+        scheduler.last_success_at ||
+        null;
+
+
+      const schedulerAgeMinutes =
+        schedulerLastSuccess
+          ? Math.max(
+              0,
+              Math.round(
+                (
+                  Date.now() -
+                  new Date(
+                    schedulerLastSuccess
+                  ).getTime()
+                ) /
+                60000
+              )
+            )
+          : null;
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        googleSheets: {
+          ok:
+            !bo.last_error,
+
+          lastImport:
+            boMeta.lastImport ||
+            bo.last_success_at ||
+            null,
+
+          sourceModified:
+            boMeta.sourceModified ||
+            null,
+
+          lastSyncAt:
+            bo.last_success_at ||
+            null
+        },
+
+        zasConnect: {
+          ok:
+            !zas.last_error,
+
+          orders:
+            Number(
+              orderResult.rows[0]?.n ||
+              0
+            ),
+
+          lastSyncAt:
+            zas.last_success_at ||
+            null,
+
+          recordsChanged:
+            Number(
+              zas.records_changed ||
+              0
+            )
+        },
+
+        generatedAt:
+          lastSyncAt,
+
+        lastSyncAt,
+
+        ageMinutes,
+
+        stale:
+          ageMinutes === null ||
+          ageMinutes > 12,
+
+        scheduler: {
+          hasRun:
+            Boolean(
+              scheduler.last_started_at ||
+              scheduler.last_success_at
+            ),
+
+          lastStartedAt:
+            scheduler.last_started_at ||
+            scheduler.last_success_at ||
+            null,
+
+          lastSuccessAt:
+            schedulerLastSuccess,
+
+          cron:
+            schedulerMeta.cron ||
+            null,
+
+          days:
+            Number(
+              schedulerMeta.days ||
+              0
+            ),
+
+          event:
+            schedulerMeta.event ||
+            null,
+
+          lastError:
+            scheduler.last_error ||
+            null,
+
+          ageMinutes:
+            schedulerAgeMinutes,
+
+          stale:
+            !schedulerLastSuccess ||
+            schedulerAgeMinutes > 12
+        },
+
+        d1: {
+          rangeFrom:
+            reports.range_from ||
+            null,
+
+          rangeTo:
+            reports.range_to ||
+            null
+        },
+
+        postgres: {
+          rangeFrom:
+            reports.range_from ||
+            null,
+
+          rangeTo:
+            reports.range_to ||
+            null
+        },
+
+        cacheSeconds:
+          0
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgNotLoadedDashboard(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const ordersResult =
+        await client.query(
+`SELECT
+  z.*
+
+FROM super_dupaza.zas_orders AS z
+
+LEFT JOIN super_dupaza.loaded_refs AS r
+  ON r.tracking_code =
+     z.tracking_code
+
+LEFT JOIN super_dupaza.manual_sap_control AS m
+  ON m.tracking_code =
+     z.tracking_code
+
+WHERE r.tracking_code IS NULL
+  AND m.tracking_code IS NULL
+
+ORDER BY
+  z.order_date DESC,
+  z.tracking_code`
+        );
+
+
+      const linesResult =
+        await client.query(
+`SELECT
+  l.tracking_code,
+  l.line_key,
+  l.line_number,
+  l.sku AS line_sku,
+  l.description AS line_description,
+  l.quantity AS line_quantity,
+  l.brand AS line_brand,
+  l.location_code AS line_location_code,
+  l.ring_code AS line_ring_code,
+  l.unit_price AS line_unit_price,
+  l.line_total AS line_total
+
+FROM super_dupaza.zas_order_lines AS l
+
+JOIN super_dupaza.zas_orders AS z
+  ON z.tracking_code =
+     l.tracking_code
+
+LEFT JOIN super_dupaza.loaded_refs AS r
+  ON r.tracking_code =
+     z.tracking_code
+
+LEFT JOIN super_dupaza.manual_sap_control AS m
+  ON m.tracking_code =
+     z.tracking_code
+
+WHERE r.tracking_code IS NULL
+  AND m.tracking_code IS NULL
+
+ORDER BY
+  z.order_date DESC,
+  l.tracking_code,
+  CASE
+    WHEN l.line_number IS NULL
+      THEN 1
+    ELSE 0
+  END,
+  l.line_number,
+  l.line_key`
+        );
+
+
+      const orderRows =
+        ordersResult.rows;
+
+
+      const lineRows =
+        linesResult.rows;
+
+
+      const linesByTracking =
+        new Map();
+
+
+      for (
+        const line
+        of lineRows
+      ) {
+
+        const tracking =
+          normId(
+            line.tracking_code
+          );
+
+
+        if (!tracking) {
+          continue;
+        }
+
+
+        if (
+          !linesByTracking.has(
+            tracking
+          )
+        ) {
+
+          linesByTracking.set(
+            tracking,
+            []
+          );
+
+        }
+
+
+        linesByTracking
+          .get(
+            tracking
+          )
+          .push(
+            line
+          );
+
+      }
+
+
+      const apiRows = [];
+
+
+      for (
+        const order
+        of orderRows
+      ) {
+
+        const tracking =
+          normId(
+            order.tracking_code
+          );
+
+
+        const lines =
+          linesByTracking.get(
+            tracking
+          ) ||
+          [];
+
+
+        if (!lines.length) {
+
+          apiRows.push(
+            d1PendingJoinedToApi(
+              {
+                ...order,
+                line_key: null,
+                line_number: null,
+                line_sku: null,
+                line_description: null,
+                line_quantity: null,
+                line_brand: null,
+                line_location_code: null,
+                line_ring_code: null,
+                line_unit_price: null,
+                line_total: null
+              }
+            )
+          );
+
+
+          continue;
+
+        }
+
+
+        for (
+          const line
+          of lines
+        ) {
+
+          apiRows.push(
+            d1PendingJoinedToApi(
+              {
+                ...order,
+                ...line
+              }
+            )
+          );
+
+        }
+
+      }
+
+
+      const nameRules =
+        await pgPendingNameRules(
+          client
+        );
+
+
+      const built =
+        buildNotLoaded(
+          apiRows,
+          [],
+          nameRules
+        );
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        rows:
+          built.rows,
+
+        columns:
+          NOT_LOADED_COLUMNS,
+
+        kpis:
+          built.kpis,
+
+        options:
+          buildNotLoadedOptions(
+            built.rows
+          ),
+
+        diagnostics: {
+          pendingOrderHeaders:
+            orderRows.length,
+
+          pendingProductLines:
+            lineRows.length,
+
+          renderedRows:
+            built.rows.length
+        },
+
+        updatedAt:
+          new Date()
+            .toISOString()
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgReportConfigGet(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const info =
+        await pgGetReportGroupLabels(
+          client
+        );
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        labels:
+          info.labels,
+
+        note:
+          "Los nombres visuales no modifican el código interno K1/K2/K3. K y segmento por vendedor se configuran en ⚙ NOMBRES."
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgPendingNameRulesList(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const rulesResult =
+        await client.query(
+`SELECT
+  n.id,
+  n.canonical_name,
+  n.alias1,
+  n.alias2,
+  n.alias3,
+  n.alias4,
+  n.alias5,
+  n.updated_at,
+  c.k_level,
+  c.segment
+
+FROM super_dupaza.pending_name_normalization AS n
+
+LEFT JOIN super_dupaza.seller_report_rule_rows AS c
+  ON c.normalization_id =
+     n.id
+
+ORDER BY
+  LOWER(n.canonical_name),
+  n.id`
+        );
+
+
+      const sellersResult =
+        await client.query(
+`SELECT
+  seller_name
+FROM super_dupaza.zas_orders
+WHERE seller_name IS NOT NULL
+  AND TRIM(seller_name) <> ''
+GROUP BY seller_name
+ORDER BY LOWER(seller_name)`
+        );
+
+
+      const rules =
+        rulesResult.rows
+          .map(
+            row => ({
+              ...pendingNameRowToRule(
+                row
+              ),
+              updatedAt:
+                row.updated_at ||
+                null
+            })
+          );
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        rules,
+
+        rawSellers:
+          sellersResult.rows
+            .map(
+              row =>
+                row.seller_name
+            )
+            .filter(Boolean),
+
+        maxAliases:
+          5,
+
+        kLevels: [
+          "K1",
+          "K2",
+          "K3"
+        ],
+
+        segments: [
+          "DIGITAL",
+          "PETAPA",
+          "XENACOJ"
+        ],
+
+        reportLogic: {
+          apiDefault:
+            "DIGITAL",
+          pdvBoVt:
+            "TIENDA_FISICA",
+          physicalSegments: [
+            "PETAPA",
+            "XENACOJ"
+          ]
+        }
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgSellerTargetsList(
+  env,
+  params
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const month =
+        validTargetMonth(
+          params.get(
+            "month"
+          ) ||
+          guatemalaMonthKey()
+        );
+
+
+      const sellersResult =
+        await client.query(
+`SELECT seller_name, priority
+FROM (
+  SELECT advisor AS seller_name, 1 AS priority
+  FROM super_dupaza.report_orders
+  WHERE advisor IS NOT NULL
+    AND TRIM(advisor) <> ''
+
+  UNION ALL
+
+  SELECT seller_name, 2 AS priority
+  FROM super_dupaza.zas_orders
+  WHERE seller_name IS NOT NULL
+    AND TRIM(seller_name) <> ''
+
+  UNION ALL
+
+  SELECT canonical_name AS seller_name, 3 AS priority
+  FROM super_dupaza.pending_name_normalization
+  WHERE canonical_name IS NOT NULL
+    AND TRIM(canonical_name) <> ''
+) AS sellers
+ORDER BY priority, LOWER(seller_name)`
+        );
+
+
+      const targetResult =
+        await client.query(
+`SELECT
+  seller_key,
+  seller_name,
+  target_amount
+FROM super_dupaza.seller_monthly_targets
+WHERE month = $1
+ORDER BY LOWER(seller_name)`,
+          [
+            month
+          ]
+        );
+
+
+      const targetMap =
+        new Map(
+          targetResult.rows
+            .map(
+              row => [
+                row.seller_key,
+                row
+              ]
+            )
+        );
+
+
+      const sellers =
+        new Map();
+
+
+      for (
+        const row
+        of sellersResult.rows
+      ) {
+
+        const name =
+          String(
+            row.seller_name ||
+            ""
+          )
+            .trim();
+
+
+        const key =
+          normalizeMatchText(
+            name
+          );
+
+
+        if (
+          !name ||
+          !key ||
+          sellers.has(
+            key
+          )
+        ) {
+          continue;
+        }
+
+
+        sellers.set(
+          key,
+          name
+        );
+
+      }
+
+
+      for (
+        const row
+        of targetResult.rows
+      ) {
+
+        if (
+          !sellers.has(
+            row.seller_key
+          )
+        ) {
+
+          sellers.set(
+            row.seller_key,
+            row.seller_name
+          );
+
+        }
+
+      }
+
+
+      const rows =
+        [
+          ...sellers.entries()
+        ]
+          .map(
+            ([
+              sellerKey,
+              seller
+            ]) => ({
+              sellerKey,
+              seller,
+              target:
+                round2(
+                  numberValue(
+                    targetMap.get(
+                      sellerKey
+                    )?.target_amount
+                  )
+                )
+            })
+          )
+          .sort(
+            (a, b) =>
+              a.seller.localeCompare(
+                b.seller,
+                "es"
+              )
+          );
+
+
+      return {
+        ok: true,
+        source:
+          "POSTGRESQL",
+        month,
+        rows
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgManualApiImportList(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const imports =
+        await client.query(
+`SELECT
+  import_id,
+  file_name,
+  imported_at,
+  source_rows,
+  unique_orders,
+  imported_orders,
+  updated_manual_orders,
+  skipped_existing_api,
+  imported_lines,
+  total_amount,
+  report_rows_changed
+FROM super_dupaza.manual_zas_api_imports
+ORDER BY imported_at DESC
+LIMIT 20`
+        );
+
+
+      const registry =
+        await client.query(
+`SELECT
+  COUNT(*)::bigint AS orders,
+  COALESCE(SUM(row_count), 0) AS lines,
+  COALESCE(SUM(order_total), 0) AS total,
+  SUM(
+    CASE
+      WHEN api_seen_at IS NOT NULL
+      THEN 1
+      ELSE 0
+    END
+  ) AS api_seen
+FROM super_dupaza.manual_zas_api_registry`
+        );
+
+
+      const current =
+        registry.rows[0] ||
+        {};
+
+
+      return {
+        ok: true,
+        source:
+          "POSTGRESQL",
+
+        current: {
+          protectedOrders:
+            Number(
+              current.orders ||
+              0
+            ),
+
+          productLines:
+            Number(
+              current.lines ||
+              0
+            ),
+
+          totalAmount:
+            round2(
+              numberValue(
+                current.total
+              )
+            ),
+
+          nowAlsoSeenInApi:
+            Number(
+              current.api_seen ||
+              0
+            )
+        },
+
+        imports:
+          imports.rows
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgManualSapList(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const result =
+        await client.query(
+`SELECT
+  tracking_code,
+  status,
+  marked_sap_at,
+  resolved_at,
+  updated_at,
+  customer_name,
+  seller_name,
+  order_date,
+  order_total
+FROM super_dupaza.manual_sap_control
+ORDER BY
+  CASE status
+    WHEN 'EN_SAP' THEN 1
+    WHEN 'RESUELTO' THEN 2
+    ELSE 9
+  END,
+  updated_at DESC`
+        );
+
+
+      const rows =
+        result.rows;
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        active:
+          rows.filter(
+            row =>
+              row.status ===
+              "EN_SAP"
+          ),
+
+        resolved:
+          rows.filter(
+            row =>
+              row.status ===
+              "RESUELTO"
+          ),
+
+        counts: {
+          active:
+            rows.filter(
+              row =>
+                row.status ===
+                "EN_SAP"
+            )
+              .length,
+
+          resolved:
+            rows.filter(
+              row =>
+                row.status ===
+                "RESUELTO"
+            )
+              .length
+        }
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgReportOptions(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const result =
+        await client.query(
+`SELECT
+  advisor,
+  source,
+  report_date
+FROM super_dupaza.report_orders`
+        );
+
+
+      const labelInfo =
+        await pgGetReportGroupLabels(
+          client
+        );
+
+
+      const rows =
+        result.rows;
+
+
+      const unique =
+        values =>
+          [
+            ...new Set(
+              values
+                .filter(Boolean)
+            )
+          ]
+            .sort(
+              (
+                a,
+                b
+              ) =>
+                String(a)
+                  .localeCompare(
+                    String(b),
+                    "es"
+                  )
+            );
+
+
+      const dates =
+        rows
+          .map(
+            row =>
+              row.report_date
+          )
+          .filter(Boolean)
+          .sort();
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        groupLabels:
+          labelInfo.labels,
+
+        options: {
+          groups:
+            [
+              "K1",
+              "K2",
+              "K3"
+            ]
+              .map(
+                level => ({
+                  value:
+                    level,
+
+                  label:
+                    labelInfo.labels[
+                      level
+                    ] ||
+                    level
+                })
+              ),
+
+          advisors:
+            unique(
+              rows.map(
+                row =>
+                  row.advisor
+              )
+            ),
+
+          types: [
+            "DIGITAL",
+            "PETAPA",
+            "XENACOJ"
+          ],
+
+          sources:
+            unique(
+              rows.map(
+                row =>
+                  row.source
+              )
+            ),
+
+          minDate:
+            dates[0] ||
+            null,
+
+          maxDate:
+            dates.at(
+              -1
+            ) ||
+            null
+        }
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgSummary(
+  env,
+  params
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const labelInfo =
+        await pgGetReportGroupLabels(
+          client
+        );
+
+
+      const filter =
+        pgBuildReportFilter(
+          params,
+          "effective_level",
+          "effective_segment"
+        );
+
+
+      const effectiveCte =
+        sellerReportEffectiveCteSql()
+          .replace(
+            /FROM report_orders AS r/g,
+            "FROM super_dupaza.report_orders AS r"
+          )
+          .replace(
+            /LEFT JOIN loaded_refs AS lr/g,
+            "LEFT JOIN super_dupaza.loaded_refs AS lr"
+          )
+          .replace(
+            /LEFT JOIN seller_report_match AS srm/g,
+            "LEFT JOIN super_dupaza.seller_report_match AS srm"
+          );
+
+
+      const matrixSql =
+effectiveCte +
+`SELECT
+  effective_level AS level,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'DIGITAL'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS digital,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'PETAPA'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS petapa,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'XENACOJ'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS xenacoj,
+
+  ROUND(
+    SUM(amount)::numeric,
+    2
+  ) AS total
+
+FROM effective
+
+WHERE ${filter.where}
+
+GROUP BY effective_level
+
+ORDER BY
+  CASE effective_level
+    WHEN 'K1' THEN 1
+    WHEN 'K2' THEN 2
+    WHEN 'K3' THEN 3
+    ELSE 99
+  END`;
+
+
+      const chartSql =
+effectiveCte +
+`SELECT
+  report_date AS date,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_level = 'K1'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS amount_k1,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_level = 'K2'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS amount_k2,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_level = 'K3'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS amount_k3,
+
+  ROUND(
+    SUM(amount)::numeric,
+    2
+  ) AS total
+
+FROM effective
+
+WHERE ${filter.where}
+
+GROUP BY report_date
+
+ORDER BY report_date`;
+
+
+      const kpiSql =
+effectiveCte +
+`SELECT
+  COUNT(*)::bigint AS orders,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN source = 'ZASCONNECT'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS zas_connect,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN source = 'PDV BO/VT'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS pdv_added,
+
+  ROUND(
+    SUM(amount)::numeric,
+    2
+  ) AS total
+
+FROM effective
+
+WHERE ${filter.where}`;
+
+
+      const matrixResult =
+        await client.query(
+          matrixSql,
+          filter.values
+        );
+
+
+      const chartResult =
+        await client.query(
+          chartSql,
+          filter.values
+        );
+
+
+      const kpiResult =
+        await client.query(
+          kpiSql,
+          filter.values
+        );
+
+
+      const byLevel =
+        new Map(
+          matrixResult.rows
+            .map(
+              row => [
+                row.level,
+                row
+              ]
+            )
+        );
+
+
+      const targetsByLevel =
+        await pgSummaryTargetsByLevel(
+          client,
+          params,
+          filter.from,
+          filter.to
+        );
+
+
+      const rows =
+        [
+          "K1",
+          "K2",
+          "K3"
+        ]
+          .map(
+            level => {
+
+              const source =
+                byLevel.get(
+                  level
+                ) ||
+                {};
+
+
+              return {
+                level,
+
+                grupo:
+                  labelInfo.labels[
+                    level
+                  ] ||
+                  level,
+
+                DIGITAL:
+                  round2(
+                    numberValue(
+                      source.digital
+                    )
+                  ),
+
+                PETAPA:
+                  round2(
+                    numberValue(
+                      source.petapa
+                    )
+                  ),
+
+                XENACOJ:
+                  round2(
+                    numberValue(
+                      source.xenacoj
+                    )
+                  ),
+
+                TOTAL:
+                  round2(
+                    numberValue(
+                      source.total
+                    )
+                  ),
+
+                META:
+                  round2(
+                    targetsByLevel[
+                      level
+                    ] ||
+                    0
+                  ),
+
+                TENDENCIA:
+                  trendForCurrentMonth(
+                    numberValue(
+                      source.total
+                    ),
+                    filter.from,
+                    filter.to
+                  )
+              };
+
+            }
+          );
+
+
+      rows.push({
+        level:
+          "TOTAL",
+
+        grupo:
+          "RESUMEN",
+
+        DIGITAL:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.DIGITAL
+              )
+            )
+          ),
+
+        PETAPA:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.PETAPA
+              )
+            )
+          ),
+
+        XENACOJ:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.XENACOJ
+              )
+            )
+          ),
+
+        TOTAL:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.TOTAL
+              )
+            )
+          ),
+
+        META:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.META
+              )
+            )
+          ),
+
+        TENDENCIA:
+          trendForCurrentMonth(
+            sum(
+              rows.map(
+                row =>
+                  row.TOTAL
+              )
+            ),
+            filter.from,
+            filter.to
+          )
+      });
+
+
+      const chart =
+        chartResult.rows
+          .map(
+            row => {
+
+              const total =
+                numberValue(
+                  row.total
+                );
+
+
+              const k1 =
+                numberValue(
+                  row.amount_k1
+                );
+
+
+              const k2 =
+                numberValue(
+                  row.amount_k2
+                );
+
+
+              const k3 =
+                numberValue(
+                  row.amount_k3
+                );
+
+
+              return {
+                date:
+                  row.date,
+
+                K1:
+                  total
+                    ? round2(
+                        k1 /
+                        total *
+                        100
+                      )
+                    : 0,
+
+                K2:
+                  total
+                    ? round2(
+                        k2 /
+                        total *
+                        100
+                      )
+                    : 0,
+
+                K3:
+                  total
+                    ? round2(
+                        k3 /
+                        total *
+                        100
+                      )
+                    : 0,
+
+                amountK1:
+                  round2(
+                    k1
+                  ),
+
+                amountK2:
+                  round2(
+                    k2
+                  ),
+
+                amountK3:
+                  round2(
+                    k3
+                  ),
+
+                total:
+                  round2(
+                    total
+                  )
+              };
+
+            }
+          );
+
+
+      const kpi =
+        kpiResult.rows[0] ||
+        {};
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        range: {
+          from:
+            filter.from,
+
+          to:
+            filter.to
+        },
+
+        groupLabels:
+          labelInfo.labels,
+
+        rows,
+
+        chart,
+
+        kpis: {
+          zasConnect:
+            round2(
+              numberValue(
+                kpi.zas_connect
+              )
+            ),
+
+          pdvAdded:
+            round2(
+              numberValue(
+                kpi.pdv_added
+              )
+            ),
+
+          total:
+            round2(
+              numberValue(
+                kpi.total
+              )
+            ),
+
+          orders:
+            Number(
+              kpi.orders ||
+              0
+            ),
+
+          target:
+            round2(
+              rows[
+                rows.length - 1
+              ]?.META ||
+              0
+            ),
+
+          trend:
+            round2(
+              rows[
+                rows.length - 1
+              ]?.TENDENCIA ||
+              0
+            )
+        }
+      };
+
+    }
+  );
+
+}
+
+
+
+async function pgAdvisorSummary(
+  env,
+  params
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const {
+        from,
+        to
+      } =
+        d1RequireDateRange(
+          params
+        );
+
+
+      const effectiveCte =
+        sellerReportEffectiveCteSql()
+          .replace(
+            /FROM report_orders AS r/g,
+            "FROM super_dupaza.report_orders AS r"
+          )
+          .replace(
+            /LEFT JOIN loaded_refs AS lr/g,
+            "LEFT JOIN super_dupaza.loaded_refs AS lr"
+          )
+          .replace(
+            /LEFT JOIN seller_report_match AS srm/g,
+            "LEFT JOIN super_dupaza.seller_report_match AS srm"
+          );
+
+
+      const sql =
+effectiveCte +
+`SELECT
+  advisor AS asesor,
+
+  ROUND(
+    SUM(amount)::numeric,
+    2
+  ) AS monto,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'DIGITAL'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS digital,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'PETAPA'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS petapa,
+
+  ROUND(
+    SUM(
+      CASE
+        WHEN effective_segment = 'XENACOJ'
+        THEN amount
+        ELSE 0
+      END
+    )::numeric,
+    2
+  ) AS xenacoj
+
+FROM effective
+
+WHERE report_date
+BETWEEN $1 AND $2
+
+GROUP BY advisor
+
+ORDER BY monto DESC,
+         asesor ASC`;
+
+
+      const result =
+        await client.query(
+          sql,
+          [
+            from,
+            to
+          ]
+        );
+
+
+      const targetInfo =
+        await pgSellerTargetsForRange(
+          client,
+          from,
+          to
+        );
+
+
+      const targetMap =
+        targetInfo.targets;
+
+
+      const rows =
+        result.rows
+          .map(
+            row => ({
+              ASESOR:
+                row.asesor,
+
+              MONTO:
+                round2(
+                  numberValue(
+                    row.monto
+                  )
+                ),
+
+              DIGITAL:
+                round2(
+                  numberValue(
+                    row.digital
+                  )
+                ),
+
+              PETAPA:
+                round2(
+                  numberValue(
+                    row.petapa
+                  )
+                ),
+
+              XENACOJ:
+                round2(
+                  numberValue(
+                    row.xenacoj
+                  )
+                ),
+
+              META:
+                proratedTargetForRange(
+                  row.asesor,
+                  from,
+                  to,
+                  targetMap
+                ),
+
+              TENDENCIA:
+                trendForCurrentMonth(
+                  row.monto,
+                  from,
+                  to
+                )
+            })
+          );
+
+
+      const existingSellerKeys =
+        new Set(
+          rows.map(
+            row =>
+              normalizeMatchText(
+                row.ASESOR
+              )
+          )
+        );
+
+
+      for (
+        const [
+          sellerKey,
+          sellerName
+        ]
+        of targetInfo.sellers.entries()
+      ) {
+
+        if (
+          existingSellerKeys.has(
+            sellerKey
+          )
+        ) {
+          continue;
+        }
+
+
+        rows.push({
+          ASESOR:
+            sellerName,
+          MONTO:
+            0,
+          DIGITAL:
+            0,
+          PETAPA:
+            0,
+          XENACOJ:
+            0,
+          META:
+            proratedTargetForRange(
+              sellerName,
+              from,
+              to,
+              targetMap
+            ),
+          TENDENCIA:
+            0
+        });
+
+      }
+
+
+      rows.sort(
+        (a, b) =>
+          Number(
+            b.MONTO ||
+            0
+          ) -
+          Number(
+            a.MONTO ||
+            0
+          ) ||
+          String(
+            a.ASESOR ||
+            ""
+          )
+            .localeCompare(
+              String(
+                b.ASESOR ||
+                ""
+              ),
+              "es"
+            )
+      );
+
+
+      const totalRow = {
+        ASESOR:
+          "TOTAL",
+
+        MONTO:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.MONTO
+              )
+            )
+          ),
+
+        DIGITAL:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.DIGITAL
+              )
+            )
+          ),
+
+        PETAPA:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.PETAPA
+              )
+            )
+          ),
+
+        XENACOJ:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.XENACOJ
+              )
+            )
+          ),
+
+        META:
+          round2(
+            sum(
+              rows.map(
+                row =>
+                  row.META
+              )
+            )
+          ),
+
+        TENDENCIA:
+          trendForCurrentMonth(
+            sum(
+              rows.map(
+                row =>
+                  row.MONTO
+              )
+            ),
+            from,
+            to
+          )
+      };
+
+
+      rows.push(
+        totalRow
+      );
+
+
+      return {
+        ok: true,
+
+        source:
+          "POSTGRESQL",
+
+        range: {
+          from,
+          to
+        },
+
+        rows,
+
+        kpis: {
+          advisors:
+            Math.max(
+              0,
+              rows.length -
+              1
+            ),
+
+          total:
+            totalRow.MONTO,
+
+          digital:
+            totalRow.DIGITAL,
+
+          petapa:
+            totalRow.PETAPA,
+
+          xenacoj:
+            totalRow.XENACOJ,
+
+          target:
+            totalRow.META,
+
+          trend:
+            totalRow.TENDENCIA
+        }
+      };
+
+    }
+  );
+
+}
 
 
 // ============================================================

@@ -1,38 +1,54 @@
-# SUPER DUPAZA 5.26.0 — GitHub baseline
+# SUPER DUPAZA 5.26.1 — PostgreSQL Shadow Reads
 
-Objetivo: pasar el Worker real a Workers Builds/GitHub SIN cambiar todavía D1 como motor.
+Esta fase NO cambia las rutas normales del dashboard.
 
-## Conserva
-- DB -> D1 super-dupaza
-- HYPERDRIVE -> super-dupaza
-- SUPER_DUPAZA_SYNC_QUEUE -> super-dupaza-sync
-- Queue consumer: batch 1 / timeout 1 / retries 3 / concurrency 1
-- Variables configuradas en Dashboard gracias a `--keep-vars`
-- Secrets existentes (Cloudflare los preserva)
+## D1 sigue activo
+Las rutas originales:
+- /api/source/status
+- /api/not-loaded
+- /api/report-config
+- /api/name-normalization/list
+- /api/seller-targets
+- /api/manual-api-import/list
+- /api/manual-sap/list
+- /api/summary
+- /api/advisor-summary
+- /api/report-options
 
-## No incluye
-- Cron triggers. Deben seguir eliminados durante la migración.
-- Cambio de dashboard a PostgreSQL. D1 sigue siendo el motor.
+siguen usando D1.
 
-## Deploy command en Cloudflare Builds
-`npx wrangler deploy --keep-vars`
+## Nuevas rutas PostgreSQL
+- /api/pg/source/status
+- /api/pg/not-loaded
+- /api/pg/report-config
+- /api/pg/name-normalization/list
+- /api/pg/seller-targets
+- /api/pg/manual-api-import/list
+- /api/pg/manual-sap/list
+- /api/pg/summary
+- /api/pg/advisor-summary
+- /api/pg/report-options
 
-## Prueba nueva
-GET `/api/postgres-smoke`
+Las rutas PG leen exclusivamente:
+Worker -> pg -> Hyperdrive -> Supabase -> super_dupaza
 
-Requiere header:
-`X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>`
+## Pruebas recomendadas
+1. /api/pg/source/status
+2. /api/pg/report-options
+3. /api/pg/summary?date_from=2026-10-01&date_to=2026-10-27
+4. /api/pg/advisor-summary?date_from=2026-10-01&date_to=2026-10-27
+5. /api/pg/not-loaded
 
-Debe devolver:
-- ok: true
-- verified: true
-- current_user: super_dupaza_worker
-- loaded_refs: 7031
-- report_orders: 2435
-- zas_orders: 430
-- zas_order_lines: 1200
+Todas deben devolver:
+"source": "POSTGRESQL"
 
-Cuando esta prueba funcione dentro del Worker real, se inicia Fase 5.26.1:
-migración de lecturas D1 -> PostgreSQL.
+## Seguridad
+/api/pg/manual-api-import/list conserva el header X-Super-Dupaza-Admin.
 
-#nuevo2
+## Importante
+No recrear Cron todavía.
+No eliminar DB.
+No cambiar todavía las rutas normales a PostgreSQL.
+
+Después de validar estas lecturas, 5.26.2 moverá cada módulo con sus escrituras
+correspondientes para evitar divergencia D1/Supabase.
