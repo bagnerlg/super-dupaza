@@ -1,83 +1,65 @@
-# SUPER DUPAZA 5.26.2 — PostgreSQL Primary Reads + Dual Control Writes
+# SUPER DUPAZA 5.26.3 — PostgreSQL Sync Shadow Test
 
-## Qué cambia
-Las rutas normales del dashboard ahora intentan PostgreSQL primero y usan D1 solo como fallback:
+## Estado previo validado
+- Dashboard normal: PostgreSQL primario.
+- D1 fallback: activo.
+- Escritura PostgreSQL: validada con BEGIN/ROLLBACK.
+- Cron: todavía deshabilitados.
 
-- /api/source/status
-- /api/not-loaded
-- /api/report-config
-- /api/name-normalization/list
-- /api/seller-targets
-- /api/manual-sap/list
-- /api/summary
-- /api/advisor-summary
-- /api/report-options
+## Qué agrega esta fase
+Un sync manual protegido que ejecuta la lógica actual de:
+- ZasConnect
+- BO / VT
+- loaded_refs
+- report_orders
+- sync_state
 
-Cuando PostgreSQL responde correctamente, la respuesta incluye:
-- databasePrimary: "POSTGRESQL"
-- fallbackUsed: false
+pero escribiendo en Supabase/PostgreSQL por Hyperdrive.
 
-Si PostgreSQL falla:
-- usa D1
-- databasePrimary: "D1_FALLBACK"
-- fallbackUsed: true
+## Importante
+La Queue normal TODAVÍA ejecuta el flujo D1.
+No se recrean Cron.
+No se elimina DB.
 
-## Escrituras de control en doble escritura
-PostgreSQL es primario y D1 queda como espejo temporal para:
-- POST /api/report-config/labels
-- POST /api/name-normalization/save
-- POST /api/name-normalization/delete
-- POST /api/seller-targets/save
-- POST /api/manual-sap/mark
-- POST /api/manual-sap/resolve
-
-Las respuestas pueden incluir:
-- mirroredToD1: true
-- mirroredToD1: false + mirrorWarning si el espejo D1 falla
-
-## Aún sigue en D1
-- Sincronización BO/VT
-- Sincronización ZasConnect
-- manual API importer
-- Queue pesada de sincronización
-- cualquier tarea de reconstrucción que todavía no haya sido migrada
-
-## Cron
-NO se incluyen Cron triggers. Deben seguir deshabilitados durante esta fase.
-
-## Prueba segura de escritura PostgreSQL
-Endpoint:
-GET /api/postgres-write-smoke
+## Endpoint de prueba
+POST /api/postgres-sync-test?days=7
 
 Header:
 X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
 
-La prueba ejecuta:
-BEGIN
-UPDATE sin cambio
-ROLLBACK
+El sync PostgreSQL corre dentro de una transacción.
+Si ocurre un error:
+ROLLBACK.
+
+Si termina:
+COMMIT.
+
+El endpoint NO modifica D1.
+
+## Estado después de la prueba
+GET /api/postgres-sync-state
+
+También requiere X-Super-Dupaza-Admin.
+
+## PowerShell
+$token = "TU_D1_SYNC_TOKEN"
+
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "https://super-dupaza.bagnerlg.workers.dev/api/postgres-sync-test?days=7" `
+  -Headers @{"X-Super-Dupaza-Admin"=$token}
 
 Resultado esperado:
-{
-  "ok": true,
-  "writePermission": true,
-  "rolledBack": true,
-  "rowsTouched": 1
-}
+- ok: True
+- engine: POSTGRESQL
+- via: HYPERDRIVE
+- transactionCommitted: True
+- queueSwitched: False
+- d1Modified: False
 
-No deja cambios persistentes.
+Después validar:
+- /api/source/status
+- /api/summary
+- /api/not-loaded
 
-## Validación recomendada después del deploy
-1. /api/postgres-write-smoke (con header)
-2. /api/summary?date_from=2026-10-01&date_to=2026-10-27
-3. /api/advisor-summary?date_from=2026-10-01&date_to=2026-10-27
-4. /api/not-loaded
-5. Abrir dashboard normal
-
-En las rutas normales esperamos:
-databasePrimary = POSTGRESQL
-fallbackUsed = false
-
-## Nota sobre alias y metas
-La aparición de metas bajo alias como ALEJANDRA SIAN / ERICK SIQUIBACHE / YESSICA CARRERA
-ya existe en la lógica D1 original. Se conserva intencionalmente durante la migración.
+Si esto pasa, Fase 5.26.4 cambia el Queue consumer a PostgreSQL.

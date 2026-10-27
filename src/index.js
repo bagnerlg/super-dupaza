@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.2 - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.3 - POSTGRES SYNC SHADOW TEST - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -1617,6 +1617,108 @@ export default {
       ) {
 
         return d1AdminPage();
+
+      }
+
+
+      // --------------------------------------------------------
+      // POSTGRESQL - SINCRONIZACIÓN MANUAL DE PRUEBA
+      // Reutiliza el motor actual de sync mediante una capa D1-compatible,
+      // pero escribe exclusivamente en Supabase/PostgreSQL.
+      // La Queue normal todavía NO usa esta ruta en Fase 5.26.3.
+      // --------------------------------------------------------
+
+      if (
+        url.pathname ===
+          "/api/postgres-sync-test" &&
+        request.method ===
+          "POST"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error:
+                auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        const days =
+          Math.min(
+            30,
+            Math.max(
+              1,
+              Number(
+                url.searchParams.get(
+                  "days"
+                ) ||
+                7
+              ) ||
+              7
+            )
+          );
+
+
+        return json(
+          await syncIncrementalToPostgres(
+            env,
+            days
+          )
+        );
+
+      }
+
+
+      // --------------------------------------------------------
+      // POSTGRESQL - ESTADO RESUMIDO DEL SYNC
+      // --------------------------------------------------------
+
+      if (
+        url.pathname ===
+          "/api/postgres-sync-state" &&
+        request.method ===
+          "GET"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error:
+                auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        return json(
+          await postgresSyncSnapshot(
+            env
+          )
+        );
 
       }
 
@@ -11536,6 +11638,850 @@ DO UPDATE SET
 
 
 
+
+// ============================================================
+// POSTGRESQL - CAPA DE COMPATIBILIDAD CON EL MOTOR D1
+// Fase 5.26.3
+//
+// Permite reutilizar la lógica de sincronización ya validada sin
+// reescribir de golpe cientos de consultas. Solo se usa en la ruta
+// manual /api/postgres-sync-test durante esta fase.
+// ============================================================
+
+const PG_COMPAT_PRIMARY_KEYS = {
+  loaded_refs: [
+    "tracking_code"
+  ],
+
+  manual_sap_control: [
+    "tracking_code"
+  ],
+
+  manual_zas_api_imports: [
+    "import_id"
+  ],
+
+  manual_zas_api_registry: [
+    "tracking_code"
+  ],
+
+  pending_name_normalization: [
+    "id"
+  ],
+
+  report_group_labels: [
+    "level"
+  ],
+
+  report_orders: [
+    "tracking_code"
+  ],
+
+  report_type_config: [
+    "config_key"
+  ],
+
+  report_type_value_rules: [
+    "field_name",
+    "field_value_norm"
+  ],
+
+  seller_monthly_targets: [
+    "seller_key",
+    "month"
+  ],
+
+  seller_report_match: [
+    "match_key"
+  ],
+
+  seller_report_rule_rows: [
+    "normalization_id"
+  ],
+
+  sync_state: [
+    "source"
+  ],
+
+  zas_order_lines: [
+    "tracking_code",
+    "line_key"
+  ],
+
+  zas_orders: [
+    "tracking_code"
+  ]
+};
+
+
+
+function pgCompatQuoteIdent(
+  value
+) {
+
+  const text =
+    String(
+      value ||
+      ""
+    );
+
+
+  if (
+    !/^[A-Za-z_][A-Za-z0-9_]*$/
+      .test(
+        text
+      )
+  ) {
+
+    throw new Error(
+      "Identificador SQL no permitido: " +
+      text
+    );
+
+  }
+
+
+  return (
+    '"' +
+    text +
+    '"'
+  );
+
+}
+
+
+
+function pgCompatTranslateSql(
+  inputSql
+) {
+
+  let sql =
+    String(
+      inputSql ||
+      ""
+    )
+      .trim();
+
+
+  if (!sql) {
+
+    return {
+      skip:
+        true,
+      sql:
+        ""
+    };
+
+  }
+
+
+  // Las 15 tablas e índices ya existen en Supabase.
+  // No recrearlos con sintaxis SQLite.
+  if (
+    /^CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)\b/i
+      .test(
+        sql
+      )
+  ) {
+
+    return {
+      skip:
+        true,
+      sql
+    };
+
+  }
+
+
+  let insertOrIgnore =
+    false;
+
+
+  if (
+    /\bINSERT\s+OR\s+IGNORE\s+INTO\b/i
+      .test(
+        sql
+      )
+  ) {
+
+    insertOrIgnore =
+      true;
+
+    sql =
+      sql.replace(
+        /\bINSERT\s+OR\s+IGNORE\s+INTO\b/i,
+        "INSERT INTO"
+      );
+
+  }
+
+
+  if (
+    /\bINSERT\s+OR\s+REPLACE\s+INTO\b/i
+      .test(
+        sql
+      )
+  ) {
+
+    throw new Error(
+      "INSERT OR REPLACE debe pasar por bulkInsertJson en PostgreSQL."
+    );
+
+  }
+
+
+  sql =
+    sql
+      .replace(
+        /\?([1-9][0-9]*)/g,
+        (_match, index) =>
+          "$" +
+          index
+      )
+      .replace(
+        /\s+COLLATE\s+NOCASE\b/gi,
+        ""
+      )
+      .replace(
+        /datetime\s*\(\s*'now'\s*\)/gi,
+        "to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
+      );
+
+
+  if (
+    insertOrIgnore &&
+    !/\bON\s+CONFLICT\b/i
+      .test(
+        sql
+      )
+  ) {
+
+    sql =
+      sql.replace(
+        /;\s*$/,
+        ""
+      ) +
+      "\nON CONFLICT DO NOTHING";
+
+  }
+
+
+  return {
+    skip:
+      false,
+    sql
+  };
+
+}
+
+
+
+function pgCompatResult(
+  result
+) {
+
+  const rows =
+    result?.rows ||
+    [];
+
+
+  return {
+    success:
+      true,
+
+    results:
+      rows,
+
+    meta: {
+      changes:
+        Number(
+          result?.rowCount ||
+          0
+        ),
+
+      duration:
+        0
+    }
+  };
+
+}
+
+
+
+function makePgD1Compat(
+  client
+) {
+
+  const compat = {
+
+    __engine:
+      "POSTGRESQL_D1_COMPAT",
+
+
+    prepare(
+      sql
+    ) {
+
+      return {
+        sql:
+          String(
+            sql ||
+            ""
+          ),
+
+        params:
+          [],
+
+
+        bind(
+          ...params
+        ) {
+
+          this.params =
+            params;
+
+          return this;
+
+        },
+
+
+        async _execute() {
+
+          const translated =
+            pgCompatTranslateSql(
+              this.sql
+            );
+
+
+          if (
+            translated.skip
+          ) {
+
+            return {
+              success:
+                true,
+              results:
+                [],
+              meta: {
+                changes:
+                  0,
+                skipped:
+                  true
+              }
+            };
+
+          }
+
+
+          const result =
+            await client.query(
+              translated.sql,
+              this.params
+            );
+
+
+          return pgCompatResult(
+            result
+          );
+
+        },
+
+
+        async all() {
+
+          return await this._execute();
+
+        },
+
+
+        async first() {
+
+          const result =
+            await this._execute();
+
+
+          return (
+            result.results?.[0] ||
+            null
+          );
+
+        },
+
+
+        async run() {
+
+          return await this._execute();
+
+        }
+
+      };
+
+    },
+
+
+    async batch(
+      statements
+    ) {
+
+      const results = [];
+
+
+      for (
+        const statement
+        of (
+          statements ||
+          []
+        )
+      ) {
+
+        if (
+          !statement ||
+          typeof statement._execute !==
+            "function"
+        ) {
+
+          throw new Error(
+            "Statement incompatible en batch PostgreSQL."
+          );
+
+        }
+
+
+        results.push(
+          await statement._execute()
+        );
+
+      }
+
+
+      return results;
+
+    },
+
+
+    async bulkInsertJson(
+      table,
+      columns,
+      rows,
+      {
+        replace = false,
+        maxBytes = 220000
+      } = {}
+    ) {
+
+      if (
+        !rows ||
+        !rows.length
+      ) {
+
+        return {
+          rows:
+            0,
+          queries:
+            0,
+          chunks:
+            0
+        };
+
+      }
+
+
+      const primaryKeys =
+        PG_COMPAT_PRIMARY_KEYS[
+          table
+        ];
+
+
+      if (
+        !primaryKeys
+      ) {
+
+        throw new Error(
+          "Tabla sin PK registrada para PostgreSQL: " +
+          table
+        );
+
+      }
+
+
+      const chunks =
+        jsonChunksByBytes(
+          rows,
+          Math.min(
+            Number(
+              maxBytes ||
+              220000
+            ),
+            180000
+          )
+        );
+
+
+      const tableSql =
+        pgCompatQuoteIdent(
+          table
+        );
+
+
+      const columnSql =
+        columns
+          .map(
+            pgCompatQuoteIdent
+          )
+          .join(
+            ", "
+          );
+
+
+      const selectSql =
+        columns
+          .map(
+            pgCompatQuoteIdent
+          )
+          .join(
+            ", "
+          );
+
+
+      let conflictSql =
+        "";
+
+
+      if (replace) {
+
+        const conflictColumns =
+          primaryKeys
+            .map(
+              pgCompatQuoteIdent
+            )
+            .join(
+              ", "
+            );
+
+
+        const updateColumns =
+          columns.filter(
+            column =>
+              !primaryKeys.includes(
+                column
+              )
+          );
+
+
+        if (
+          updateColumns.length
+        ) {
+
+          conflictSql =
+            "\nON CONFLICT (" +
+            conflictColumns +
+            ") DO UPDATE SET\n  " +
+            updateColumns
+              .map(
+                column => {
+
+                  const quoted =
+                    pgCompatQuoteIdent(
+                      column
+                    );
+
+
+                  return (
+                    quoted +
+                    " = EXCLUDED." +
+                    quoted
+                  );
+
+                }
+              )
+              .join(
+                ",\n  "
+              );
+
+        } else {
+
+          conflictSql =
+            "\nON CONFLICT (" +
+            conflictColumns +
+            ") DO NOTHING";
+
+        }
+
+      }
+
+
+      const sql =
+`INSERT INTO super_dupaza.${tableSql} (
+  ${columnSql}
+)
+SELECT
+  ${selectSql}
+FROM jsonb_populate_recordset(
+  NULL::super_dupaza.${tableSql},
+  $1::jsonb
+)
+${conflictSql}`;
+
+
+      let queries =
+        0;
+
+
+      for (
+        const chunk
+        of chunks
+      ) {
+
+        await client.query(
+          sql,
+          [
+            JSON.stringify(
+              chunk
+            )
+          ]
+        );
+
+
+        queries++;
+
+      }
+
+
+      return {
+        rows:
+          rows.length,
+
+        queries,
+
+        chunks:
+          chunks.length
+      };
+
+    }
+
+  };
+
+
+  return compat;
+
+}
+
+
+
+async function postgresSyncSnapshot(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const counts =
+        await client.query(
+`SELECT
+  (SELECT COUNT(*)::bigint FROM super_dupaza.zas_orders)
+    AS zas_orders,
+
+  (SELECT COUNT(*)::bigint FROM super_dupaza.zas_order_lines)
+    AS zas_order_lines,
+
+  (SELECT COUNT(*)::bigint FROM super_dupaza.loaded_refs)
+    AS loaded_refs,
+
+  (SELECT COUNT(*)::bigint FROM super_dupaza.report_orders)
+    AS report_orders`
+        );
+
+
+      const states =
+        await client.query(
+`SELECT
+  source,
+  last_started_at,
+  last_success_at,
+  range_from,
+  range_to,
+  records_seen,
+  records_changed,
+  metadata_json,
+  last_error
+FROM super_dupaza.sync_state
+WHERE source IN (
+  'ZASCONNECT',
+  'BO_VT',
+  'REPORTS',
+  'SCHEDULER'
+)
+ORDER BY source`
+        );
+
+
+      const row =
+        counts.rows[0] ||
+        {};
+
+
+      return {
+        ok:
+          true,
+
+        engine:
+          "POSTGRESQL",
+
+        counts: {
+          zas_orders:
+            Number(
+              row.zas_orders ||
+              0
+            ),
+
+          zas_order_lines:
+            Number(
+              row.zas_order_lines ||
+              0
+            ),
+
+          loaded_refs:
+            Number(
+              row.loaded_refs ||
+              0
+            ),
+
+          report_orders:
+            Number(
+              row.report_orders ||
+              0
+            )
+        },
+
+        syncState:
+          states.rows
+      };
+
+    }
+  );
+
+}
+
+
+
+async function syncIncrementalToPostgres(
+  env,
+  days = 7
+) {
+
+  if (
+    !env.HYPERDRIVE?.connectionString
+  ) {
+
+    throw new Error(
+      "Falta el binding HYPERDRIVE."
+    );
+
+  }
+
+
+  const requestedDays =
+    Math.min(
+      30,
+      Math.max(
+        1,
+        Number(
+          days ||
+          7
+        ) ||
+        7
+      )
+    );
+
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query(
+        "BEGIN"
+      );
+
+
+      try {
+
+        const pgEnv = {
+          ...env,
+
+          DB:
+            makePgD1Compat(
+              client
+            )
+        };
+
+
+        const result =
+          await syncIncrementalToD1(
+            pgEnv,
+            requestedDays
+          );
+
+
+        await client.query(
+          "COMMIT"
+        );
+
+
+        const snapshot =
+          await postgresSyncSnapshot(
+            env
+          );
+
+
+        return {
+          ok:
+            true,
+
+          engine:
+            "POSTGRESQL",
+
+          via:
+            "HYPERDRIVE",
+
+          transactionCommitted:
+            true,
+
+          queueSwitched:
+            false,
+
+          d1Modified:
+            false,
+
+          sync:
+            result,
+
+          snapshot
+        };
+
+
+      } catch (error) {
+
+        try {
+
+          await client.query(
+            "ROLLBACK"
+          );
+
+        } catch {}
+
+
+        throw error;
+
+      }
+
+    }
+  );
+
+}
+
+
+
 async function syncIncrementalToD1(
   env,
   days = 7
@@ -19282,6 +20228,27 @@ async function d1BulkInsertJson(
     maxBytes = 220000
   } = {}
 ) {
+
+  // La capa PostgreSQL implementa este mismo contrato sin usar
+  // json_each/json_extract de SQLite.
+  if (
+    db &&
+    typeof db.bulkInsertJson ===
+      "function"
+  ) {
+
+    return await db.bulkInsertJson(
+      table,
+      columns,
+      rows,
+      {
+        replace,
+        maxBytes
+      }
+    );
+
+  }
+
 
   if (
     !rows ||
