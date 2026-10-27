@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.5 - CRON -> QUEUE -> POSTGRESQL - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.6 - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -402,10 +402,9 @@ export default {
       if (url.pathname === "/api/source/status") {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "source/status",
-            () => pgPublicStatus(env),
-            () => d1PublicStatus(env)
+            () => pgPublicStatus(env)
           )
         );
 
@@ -422,10 +421,9 @@ export default {
       if (url.pathname === "/api/not-loaded") {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "not-loaded",
-            () => pgNotLoadedDashboard(env),
-            () => d1NotLoadedDashboard(env)
+            () => pgNotLoadedDashboard(env)
           )
         );
 
@@ -444,10 +442,9 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "report-config",
-            () => pgReportConfigGet(env),
-            () => reportConfigGet(env)
+            () => pgReportConfigGet(env)
           )
         );
 
@@ -487,7 +484,7 @@ export default {
 
 
         return json(
-          await dualReportConfigSaveLabels(
+          await pgReportConfigSaveLabels(
             env,
             body
           )
@@ -508,10 +505,9 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "name-normalization/list",
-            () => pgPendingNameRulesList(env),
-            () => pendingNameRulesList(env)
+            () => pgPendingNameRulesList(env)
           )
         );
 
@@ -551,7 +547,7 @@ export default {
 
 
         return json(
-          await dualPendingNameRuleSave(
+          await pgPendingNameRuleSavePrimary(
             env,
             body
           )
@@ -593,7 +589,7 @@ export default {
 
 
         return json(
-          await dualPendingNameRuleDelete(
+          await pgPendingNameRuleDeletePrimary(
             env,
             body?.id
           )
@@ -614,10 +610,9 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "seller-targets",
-            () => pgSellerTargetsList(env, url.searchParams),
-            () => sellerTargetsList(env, url.searchParams)
+            () => pgSellerTargetsList(env, url.searchParams)
           )
         );
 
@@ -657,7 +652,7 @@ export default {
 
 
         return json(
-          await dualSellerTargetsSave(
+          await pgSellerTargetsSavePrimary(
             env,
             body
           )
@@ -699,7 +694,7 @@ export default {
 
 
         return json(
-          await manualApiImportList(
+          await pgManualApiImportList(
             env
           )
         );
@@ -740,7 +735,7 @@ export default {
 
 
         return json(
-          await manualApiImportRows(
+          await pgManualApiImportRowsPrimary(
             env,
             body
           )
@@ -761,10 +756,9 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "manual-sap/list",
-            () => pgManualSapList(env),
-            () => manualSapList(env)
+            () => pgManualSapList(env)
           )
         );
 
@@ -804,7 +798,7 @@ export default {
 
 
         return json(
-          await dualManualSapMark(
+          await pgManualSapMarkPrimary(
             env,
             body?.trackingCode
           )
@@ -846,7 +840,7 @@ export default {
 
 
         return json(
-          await dualManualSapResolve(
+          await pgManualSapResolvePrimary(
             env,
             body?.trackingCode
           )
@@ -865,10 +859,9 @@ export default {
       if (url.pathname === "/api/summary") {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "summary",
-            () => pgSummary(env, url.searchParams),
-            () => d1Summary(env, url.searchParams)
+            () => pgSummary(env, url.searchParams)
           )
         );
 
@@ -888,10 +881,9 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "advisor-summary",
-            () => pgAdvisorSummary(env, url.searchParams),
-            () => d1AdvisorSummary(env, url.searchParams)
+            () => pgAdvisorSummary(env, url.searchParams)
           )
         );
 
@@ -908,11 +900,87 @@ export default {
       ) {
 
         return json(
-          await pgFirstRead(
+          await pgOnlyRead(
             "report-options",
-            () => pgReportOptions(env),
-            () => d1ReportOptions(env)
+            () => pgReportOptions(env)
           )
+        );
+
+      }
+
+
+      // --------------------------------------------------------
+      // AUDITORÍA DE AISLAMIENTO D1
+      // --------------------------------------------------------
+
+      if (
+        url.pathname ===
+          "/api/postgres-runtime-audit" &&
+        request.method ===
+          "GET"
+      ) {
+
+        const auth =
+          checkD1AdminToken(
+            request,
+            env
+          );
+
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error: auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        return json({
+          ok: true,
+          phase: "5.26.6",
+          engine: "POSTGRESQL",
+          hyperdrivePresent: Boolean(env.HYPERDRIVE),
+          d1BindingStillPresent: Boolean(env.DB),
+          d1OperationalReads: false,
+          d1OperationalWrites: false,
+          d1QueueSync: false,
+          d1CronSync: false,
+          manualApiImporter: "POSTGRESQL",
+          legacyD1Routes: "410_GONE",
+          readyForFinalDbBindingRemovalTest: true
+        });
+
+      }
+
+
+      // --------------------------------------------------------
+      // D1 RETIRADO DEL CAMINO OPERATIVO - FASE 5.26.6
+      // --------------------------------------------------------
+
+      if (
+        url.pathname.startsWith(
+          "/api/d1/"
+        ) ||
+        url.pathname ===
+          "/d1-admin" ||
+        url.pathname ===
+          "/d1-export-final"
+      ) {
+
+        return json(
+          {
+            ok: false,
+            retired: true,
+            engine: "POSTGRESQL",
+            error: "D1 fue retirado del camino operativo de SUPER DUPAZA.",
+            replacement: "/api/postgres-sync-state"
+          },
+          410
         );
 
       }
@@ -15409,6 +15477,37 @@ async function pgFirstRead(
 
 }
 
+async function pgOnlyRead(
+  label,
+  postgresLoader
+) {
+
+  const result =
+    await postgresLoader();
+
+
+  return {
+    ...result,
+
+    databasePrimary:
+      "POSTGRESQL",
+
+    fallbackUsed:
+      false,
+
+    d1OperationalPath:
+      false,
+
+    readMode:
+      "POSTGRESQL_ONLY",
+
+    readLabel:
+      label
+  };
+
+}
+
+
 
 async function pgReportConfigSaveLabels(
   env,
@@ -18299,6 +18398,79 @@ ORDER BY LOWER(seller_name)`,
 
 }
 
+
+
+async function pgManualApiImportRowsPrimary(
+  env,
+  body
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      await client.query(
+        "BEGIN"
+      );
+
+
+      try {
+
+        const pgEnv = {
+          ...env,
+
+          DB:
+            makePgD1Compat(
+              client
+            )
+        };
+
+
+        const result =
+          await manualApiImportRows(
+            pgEnv,
+            body
+          );
+
+
+        await client.query(
+          "COMMIT"
+        );
+
+
+        return {
+          ...result,
+
+          engine:
+            "POSTGRESQL",
+
+          via:
+            "HYPERDRIVE",
+
+          transactionCommitted:
+            true,
+
+          d1Modified:
+            false
+        };
+
+      } catch (error) {
+
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+
+        throw error;
+
+      }
+
+    }
+  );
+
+}
 
 
 async function pgManualApiImportList(

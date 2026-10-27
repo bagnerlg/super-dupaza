@@ -1,87 +1,90 @@
-# SUPER DUPAZA 5.26.5 — Cron -> Queue -> PostgreSQL
+# SUPER DUPAZA 5.26.6 — D1 aislado del camino operativo
 
-## Estado validado antes de esta fase
-- PostgreSQL/Supabase validado.
-- Dashboard normal: PostgreSQL primario.
-- D1 fallback: activo para lecturas.
-- Escrituras de control: PostgreSQL + espejo temporal D1.
-- Sync manual PostgreSQL: OK.
-- Queue manual -> PostgreSQL: OK.
-- SCHEDULER terminó con QUEUE_SUCCESS.
-- transactionCommitted=true.
-- d1Modified=false.
-- last_error=null.
+## Estado
+PostgreSQL/Supabase pasa a ser el único motor operativo de la aplicación.
 
-## Cambio de esta fase
-Se reactivan los Cron originales mediante wrangler.toml:
+### PostgreSQL-only
+- /api/source/status
+- /api/not-loaded
+- /api/report-config
+- /api/report-config/labels
+- /api/name-normalization/list
+- /api/name-normalization/save
+- /api/name-normalization/delete
+- /api/seller-targets
+- /api/seller-targets/save
+- /api/manual-api-import/list
+- /api/manual-api-import
+- /api/manual-sap/list
+- /api/manual-sap/mark
+- /api/manual-sap/resolve
+- /api/summary
+- /api/advisor-summary
+- /api/report-options
+- Queue sync
+- Cron sync
 
-[triggers]
-crons = [ "*/5 * * * *", "17 12 * * *" ]
+## Importador manual
+El importador Excel/API ahora ejecuta dentro de una transacción PostgreSQL:
 
-Flujo automático:
+BEGIN
+-> lógica de importación
+-> report_orders
+-> COMMIT
 
-Cron
--> scheduled()
--> SUPER_DUPAZA_SYNC_QUEUE
--> queue()
--> runQueuedSync()
--> syncIncrementalToPostgres()
--> Hyperdrive
--> Supabase PostgreSQL
+Si falla:
+ROLLBACK
 
-## Significado
-*/5 * * * *
-- Encola sincronización incremental de 7 días cada 5 minutos.
+Respuesta incluye:
+- engine: POSTGRESQL
+- via: HYPERDRIVE
+- transactionCommitted: true
+- d1Modified: false
 
-17 12 * * *
-- Encola sincronización de 30 días una vez al día.
+## D1 retirado
+Todas las rutas:
+- /api/d1/*
+- /d1-admin
+- /d1-export-final
 
-Cloudflare Cron usa UTC.
-En Guatemala:
-- */5 sigue siendo cada 5 minutos.
-- 17 12 * * * = 06:17 hora Guatemala.
+responden HTTP 410 Gone.
 
-## Queue
-Se conserva:
-- max_batch_size = 1
-- max_batch_timeout = 1
-- max_retries = 3
-- max_concurrency = 1
+## Binding DB
+Todavía se conserva EN ESTA FASE solamente para confirmar que ninguna ruta operativa lo necesita.
 
-Así los jobs no se pisan.
+No borrarlo manualmente todavía.
 
-## D1
-El binding DB se conserva todavía.
-La Queue automática NO sincroniza D1.
-D1 queda como respaldo/legacy temporal.
+## Auditoría
+GET /api/postgres-runtime-audit
+Header:
+X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
 
-## Después del deploy
-Verificar en Cloudflare:
-Workers & Pages
--> super-dupaza
--> Configuración / Triggers
--> Cron Triggers
+Esperado:
+- ok = true
+- engine = POSTGRESQL
+- d1OperationalReads = false
+- d1OperationalWrites = false
+- d1QueueSync = false
+- d1CronSync = false
+- manualApiImporter = POSTGRESQL
+- legacyD1Routes = 410_GONE
+- readyForFinalDbBindingRemovalTest = true
 
-Deben aparecer:
+## Validación de ruta retirada
+Abrir:
+GET /api/d1/test
+
+Debe devolver HTTP 410 con:
+retired: true
+engine: POSTGRESQL
+
+## Cron
+Se mantienen:
 - */5 * * * *
 - 17 12 * * *
 
-## Validación operativa
-Consultar:
-
-GET /api/postgres-sync-state
-
-con:
-X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
-
-En SCHEDULER se espera:
-- event = QUEUE_SUCCESS
-- engine = POSTGRESQL
-- via = HYPERDRIVE
-- last_error = null
-
-El campo cron indicará cuál trigger originó la ejecución.
-
 ## Próxima fase
-Después de validar operación automática:
-5.26.6 = retirar dependencias D1 restantes y preparar eliminación del binding DB.
+5.26.7:
+- eliminar binding DB de wrangler.toml
+- desplegar sin D1
+- validar dashboard + Queue + Cron
