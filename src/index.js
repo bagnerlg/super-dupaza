@@ -1,8 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.7 - D1 BINDING REMOVED - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
-// SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
-// Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
+// SUPER DUPAZA 5.27.0 FINAL - POSTGRESQL + HYPERDRIVE - SYNC OPTIMIZADO - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 
 const APPS_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbzl3e1CdxI_zc1sboZv8h7d0GJ-vOXDWoGnI5y72ESQrESNZAiuHnDnB-kp4nxo1Zy3vQ/exec";
@@ -158,7 +156,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -196,7 +194,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -227,7 +225,7 @@ export default {
 
       // --------------------------------------------------------
       // POSTGRES SHADOW READS
-      // Estas rutas NO sustituyen todavía las rutas D1 normales.
+      // Rutas PostgreSQL de diagnóstico conservadas por compatibilidad.
       // Sirven para validar salida equivalente desde Supabase.
       // --------------------------------------------------------
 
@@ -308,7 +306,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -396,7 +394,7 @@ export default {
 
 
       // --------------------------------------------------------
-      // STATUS - D1
+      // STATUS - POSTGRESQL
       // --------------------------------------------------------
 
       if (url.pathname === "/api/source/status") {
@@ -415,7 +413,7 @@ export default {
       // ÓRDENES NO CARGADAS
       // --------------------------------------------------------
       // --------------------------------------------------------
-      // ÓRDENES NO CARGADAS - D1
+      // ÓRDENES NO CARGADAS - POSTGRESQL
       // --------------------------------------------------------
 
       if (url.pathname === "/api/not-loaded") {
@@ -459,7 +457,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -522,7 +520,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -564,7 +562,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -627,7 +625,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -662,7 +660,7 @@ export default {
 
 
       // --------------------------------------------------------
-      // IMPORTADOR EXCEL -> D1 COMO FUENTE API MANUAL
+      // IMPORTADOR EXCEL -> POSTGRESQL COMO FUENTE API MANUAL
       // --------------------------------------------------------
 
       if (
@@ -673,7 +671,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -710,7 +708,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -773,7 +771,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -815,7 +813,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -853,7 +851,7 @@ export default {
       // RESUMEN BO / VT
       // --------------------------------------------------------
       // --------------------------------------------------------
-      // RESUMEN BO / VT - D1
+      // RESUMEN BO / VT - POSTGRESQL
       // --------------------------------------------------------
 
       if (url.pathname === "/api/summary") {
@@ -872,7 +870,7 @@ export default {
       // RESUMEN POR ASESOR
       // --------------------------------------------------------
       // --------------------------------------------------------
-      // RESUMEN POR ASESOR - D1
+      // RESUMEN POR ASESOR - POSTGRESQL
       // --------------------------------------------------------
 
       if (
@@ -891,7 +889,7 @@ export default {
 
 
       // --------------------------------------------------------
-      // OPCIONES DE REPORTES - D1
+      // OPCIONES DE REPORTES - POSTGRESQL
       // --------------------------------------------------------
 
       if (
@@ -910,7 +908,7 @@ export default {
 
 
       // --------------------------------------------------------
-      // AUDITORÍA DE AISLAMIENTO D1
+      // AUDITORÍA DE MIGRACIÓN / RUNTIME
       // --------------------------------------------------------
 
       if (
@@ -921,7 +919,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -942,10 +940,10 @@ export default {
 
         return json({
           ok: true,
-          phase: "5.26.7",
+          phase: "5.27.0",
           engine: "POSTGRESQL",
           hyperdrivePresent: Boolean(env.HYPERDRIVE),
-          d1BindingStillPresent: Boolean(env.DB),
+          d1BindingStillPresent: false,
           d1OperationalReads: false,
           d1OperationalWrites: false,
           d1QueueSync: false,
@@ -953,15 +951,56 @@ export default {
           manualApiImporter: "POSTGRESQL",
           legacyD1Routes: "410_GONE",
           readyForFinalDbBindingRemovalTest: true,
-          migrationComplete: !env.DB,
-          d1BindingExpected: false
+          migrationComplete: true,
+          d1BindingExpected: false,
+          syncStrategy: "FAST_5M + FULL_RECONCILE_DAILY"
         });
 
       }
 
 
       // --------------------------------------------------------
-      // D1 RETIRADO DEL CAMINO OPERATIVO - FASE 5.26.6
+      // POSTGRESQL - USO / CAPACIDAD
+      // Referencias del plan gratuito son informativas (2026-10-28).
+      // --------------------------------------------------------
+
+      if (
+        url.pathname ===
+          "/api/postgres-usage" &&
+        request.method ===
+          "GET"
+      ) {
+
+        const auth =
+          checkAdminToken(
+            request,
+            env
+          );
+
+        if (!auth.ok) {
+
+          return json(
+            {
+              ok: false,
+              error: auth.error
+            },
+            auth.status
+          );
+
+        }
+
+
+        return json(
+          await postgresUsageSnapshot(
+            env
+          )
+        );
+
+      }
+
+
+      // --------------------------------------------------------
+      // RUTAS D1 LEGACY RETIRADAS - RESPUESTA DE COMPATIBILIDAD 410
       // --------------------------------------------------------
 
       if (
@@ -989,758 +1028,11 @@ export default {
 
 
       // --------------------------------------------------------
-      // D1 - RESUMEN BO / VT
-      // --------------------------------------------------------
-      // D1 - RESUMEN BO / VT
-      // Validación previa al cambio del dashboard público.
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/summary"
-      ) {
-
-        return json(
-          await d1Summary(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - RESUMEN POR ASESOR
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/advisor-summary"
-      ) {
-
-        return json(
-          await d1AdvisorSummary(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // DIAGNÓSTICO MUNICIPIO / TABLA MunName
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/pending-location-test"
-      ) {
-
-        return json({
-          ok:
-            true,
-
-          input: {
-            municipality:
-              url.searchParams.get(
-                "municipality"
-              ) ||
-              "",
-
-            department:
-              url.searchParams.get(
-                "department"
-              ) ||
-              "",
-
-            zone:
-              url.searchParams.get(
-                "zone"
-              ) ||
-              ""
-          },
-
-          output:
-            normalizePendingLocation(
-              url.searchParams.get(
-                "municipality"
-              ),
-              url.searchParams.get(
-                "department"
-              ),
-              url.searchParams.get(
-                "zone"
-              )
-            ),
-
-          mode:
-            "EXACT_CATALOG_COMPARE"
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // TEST MANUAL DE QUEUE -> POSTGRESQL
-      // En Fase 5.26.4 el consumidor de super-dupaza-sync
-      // ejecuta directamente syncIncrementalToPostgres().
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-          "/api/postgres-queue-test" &&
-        request.method ===
-          "POST"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok: false,
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        if (
-          !env.SUPER_DUPAZA_SYNC_QUEUE
-        ) {
-
-          return json(
-            {
-              ok:
-                false,
-
-              stage:
-                "PRODUCER_BINDING",
-
-              error:
-                "Falta SUPER_DUPAZA_SYNC_QUEUE."
-            },
-            500
-          );
-
-        }
-
-
-        const payload = {
-          type:
-            "SUPER_DUPAZA_POSTGRES_QUEUE_TEST",
-
-          cron:
-            "MANUAL_POSTGRES_QUEUE_TEST",
-
-          days:
-            7,
-
-          scheduledAt:
-            new Date()
-              .toISOString(),
-
-          enqueuedAt:
-            new Date()
-              .toISOString()
-        };
-
-
-        await env
-          .SUPER_DUPAZA_SYNC_QUEUE
-          .send(
-            payload
-          );
-
-
-        return json({
-          ok:
-            true,
-
-          queued:
-            true,
-
-          queue:
-            "super-dupaza-sync",
-
-          engine:
-            "POSTGRESQL",
-
-          days:
-            7,
-
-          note:
-            "Mensaje enviado. El consumer ejecutará PostgreSQL/Hyperdrive."
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // TEST MANUAL DE QUEUE
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/queue-diagnostic"
-      ) {
-
-        return json({
-          ok:
-            true,
-
-          queueBindingPresent:
-            Boolean(
-              env.SUPER_DUPAZA_SYNC_QUEUE
-            ),
-
-          d1BindingPresent:
-            Boolean(
-              env.DB
-            ),
-
-          adminSecretPresent:
-            Boolean(
-              env.D1_SYNC_TOKEN
-            ),
-
-          queueConsumerHandlerPresent:
-            true,
-
-          expectedBinding:
-            "SUPER_DUPAZA_SYNC_QUEUE",
-
-          queue:
-            "super-dupaza-sync",
-
-          note:
-            env.SUPER_DUPAZA_SYNC_QUEUE
-              ? "Binding productor visible para el Worker."
-              : "Falta el binding PRODUCTOR de Queue. El activador Queue solo configura el consumidor."
-        });
-
-      }
-
-
-      if (
-        url.pathname ===
-        "/api/d1/queue-test" &&
-        request.method ===
-        "POST"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok:
-                false,
-              stage:
-                "AUTH",
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        if (
-          !env.SUPER_DUPAZA_SYNC_QUEUE
-        ) {
-
-          return json(
-            {
-              ok:
-                false,
-              stage:
-                "PRODUCER_BINDING",
-              queueBindingPresent:
-                false,
-              expectedBinding:
-                "SUPER_DUPAZA_SYNC_QUEUE",
-              queue:
-                "super-dupaza-sync",
-              error:
-                "Falta el binding PRODUCTOR SUPER_DUPAZA_SYNC_QUEUE en el Worker."
-            },
-            500
-          );
-
-        }
-
-
-        const payload = {
-          type:
-            "SUPER_DUPAZA_SYNC_TEST",
-
-          cron:
-            "MANUAL_QUEUE_TEST",
-
-          days:
-            7,
-
-          scheduledAt:
-            new Date()
-              .toISOString(),
-
-          enqueuedAt:
-            new Date()
-              .toISOString()
-        };
-
-
-        try {
-
-          await env
-            .SUPER_DUPAZA_SYNC_QUEUE
-            .send(
-              payload
-            );
-
-        } catch (error) {
-
-          return json(
-            {
-              ok:
-                false,
-              stage:
-                "QUEUE_SEND",
-              queueBindingPresent:
-                true,
-              error:
-                String(
-                  error?.message ||
-                  error
-                )
-            },
-            500
-          );
-
-        }
-
-
-        return json({
-          ok:
-            true,
-
-          stage:
-            "ENQUEUED",
-
-          queued:
-            true,
-
-          queue:
-            "super-dupaza-sync",
-
-          binding:
-            "SUPER_DUPAZA_SYNC_QUEUE",
-
-          message:
-            "Mensaje enviado. El consumer actual procesa PostgreSQL/Hyperdrive; revisa /api/postgres-sync-state."
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO POR TRACKING
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/tracking"
-      ) {
-
-        return json(
-          await d1TrackingDiagnostic(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - REPARAR MATERIALIZACIÓN DE REPORTES
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-          "/api/d1/report-repair" &&
-        request.method ===
-          "POST"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok:
-                false,
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        const now =
-          new Date()
-            .toISOString();
-
-
-        const before =
-          await detectReportMaterializationDrift(
-            env
-          );
-
-
-        const stats =
-          await rebuildReportOrdersFromD1(
-            env,
-            now
-          );
-
-
-        const after =
-          await detectReportMaterializationDrift(
-            env
-          );
-
-
-        return json({
-          ok:
-            true,
-
-          source:
-            "D1",
-
-          before,
-
-          after,
-
-          stats
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - SALUD DE MATERIALIZACIÓN DE REPORTES
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/report-health"
-      ) {
-
-        const repair =
-          await ensureReportOrdersFresh(
-            env
-          );
-
-
-        return json({
-          ok:
-            true,
-
-          source:
-            "D1",
-
-          repaired:
-            repair.repaired,
-
-          driftBefore:
-            repair.before,
-
-          drift:
-            repair.after,
-
-          crossSourceOverlaps:
-            await countCrossSourceOverlaps(
-              env
-            ),
-
-          crossSourceCollisions:
-            await countCrossSourceReportCollisions(
-              env
-            ),
-
-          trackedApiAttributionMismatches:
-            await countTrackedApiAttributionMismatches(
-              env
-            ),
-
-          pdvDateAttributionMismatches:
-            await countPdvDateAttributionMismatches(
-              env
-            ),
-
-          stats:
-            repair.stats ||
-            null
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO CACHE ZASCONNECT POR FECHA
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/zas-day"
-      ) {
-
-        return json(
-          await d1ZasDay(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO BO/VT POR FECHA
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/bo-vt-day"
-      ) {
-
-        return json(
-          await d1BoVtDay(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO ASESOR POR FECHA Y FUENTE
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/advisor-day"
-      ) {
-
-        return json(
-          await d1AdvisorDay(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO PDV BO/VT POR FECHA
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/pdv-day"
-      ) {
-
-        return json(
-          await d1PdvDay(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - COBERTURA POR FECHA
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/date-counts"
-      ) {
-
-        return json(
-          await d1DateCounts(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - PENDIENTES, CONTEO Y PÁGINA
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/not-loaded"
-      ) {
-
-        return json(
-          await d1NotLoaded(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - DIAGNÓSTICO DEL SCHEDULER / CRON
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/cron-status"
-      ) {
-
-        const status =
-          await d1PublicStatus(
-            env
-          );
-
-
-        return json({
-          ok: true,
-          scheduler:
-            status.scheduler,
-          d1LastSyncAt:
-            status.lastSyncAt,
-          d1AgeMinutes:
-            status.ageMinutes
-        });
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - PRUEBA DE CONEXIÓN
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/d1/test"
-      ) {
-
-        return json(
-          await d1Test(
-            env
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - EXPORTADOR DEFINITIVO PARA MIGRACIÓN A SUPABASE
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/d1-export-final"
-      ) {
-
-        return d1FinalExportPage();
-
-      }
-
-
-      if (
-        url.pathname ===
-          "/api/d1/export-final-page" &&
-        request.method ===
-          "GET"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok:
-                false,
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        return json(
-          await d1FinalExportPageData(
-            env,
-            url.searchParams
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
       // HYPERDRIVE - PRUEBA DE BINDING
       // No ejecuta SQL todavía. Verifica que el binding exista
       // y que Cloudflare entregue una connectionString utilizable.
       // --------------------------------------------------------
 
-      if (
-        url.pathname ===
-        "/hyperdrive-test"
-      ) {
-
-        return hyperdriveTestPage();
-
-      }
 
 
       if (
@@ -1751,7 +1043,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -1782,25 +1074,9 @@ export default {
 
 
       // --------------------------------------------------------
-      // D1 - ADMIN LOCAL
-      // No aparece enlazado desde el dashboard principal.
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/d1-admin"
-      ) {
-
-        return d1AdminPage();
-
-      }
-
-
-      // --------------------------------------------------------
       // POSTGRESQL - SINCRONIZACIÓN MANUAL DE PRUEBA
-      // Reutiliza el motor actual de sync mediante una capa D1-compatible,
-      // pero escribe exclusivamente en Supabase/PostgreSQL.
-      // La Queue normal todavía NO usa esta ruta en Fase 5.26.3.
+      // Ejecuta el mismo motor PostgreSQL usado por Queue/Cron.
+      // days=7 usa FAST_INCREMENTAL; days=30 usa FULL_RECONCILE.
       // --------------------------------------------------------
 
       if (
@@ -1811,7 +1087,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -1850,7 +1126,8 @@ export default {
         return json(
           await syncIncrementalToPostgres(
             env,
-            days
+            days,
+            { includeSnapshot: true }
           )
         );
 
@@ -1869,7 +1146,7 @@ export default {
       ) {
 
         const auth =
-          checkD1AdminToken(
+          checkAdminToken(
             request,
             env
           );
@@ -1899,128 +1176,6 @@ export default {
 
 
       // --------------------------------------------------------
-      // D1 - SINCRONIZACIÓN INCREMENTAL
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-          "/api/d1/sync/incremental" &&
-        request.method ===
-          "POST"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok: false,
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        const days =
-          Math.min(
-            30,
-            Math.max(
-              1,
-              Number(
-                url.searchParams.get(
-                  "days"
-                ) ||
-                7
-              ) ||
-              7
-            )
-          );
-
-
-        return json(
-          await syncIncrementalToD1(
-            env,
-            days
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // D1 - CARGA INICIAL COMPLETA
-      // POST protegido por D1_SYNC_TOKEN.
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-          "/api/d1/sync/full" &&
-        request.method ===
-          "POST"
-      ) {
-
-        const auth =
-          checkD1AdminToken(
-            request,
-            env
-          );
-
-
-        if (!auth.ok) {
-
-          return json(
-            {
-              ok: false,
-              error:
-                auth.error
-            },
-            auth.status
-          );
-
-        }
-
-
-        return json(
-          await syncFullToD1(
-            env
-          )
-        );
-
-      }
-
-
-      // --------------------------------------------------------
-      // DIAGNÓSTICO TEMPORAL ZASCONNECT
-      // Consulta directa, sin cache.
-      // --------------------------------------------------------
-
-      if (
-        url.pathname ===
-        "/api/zas-debug"
-      ) {
-
-        const debug =
-          await debugZasExport(
-            env
-          );
-
-
-        return json(
-          debug
-        );
-
-      }
-
-
       return new Response(
         "Not Found",
         {
@@ -2151,7 +1306,7 @@ async function enqueueScheduledSync(
 
 
   // IMPORTANTE:
-  // No leer API, no parsear órdenes y no consultar D1 desde el Cron.
+  // No leer API, no parsear órdenes y no consultar PostgreSQL desde el Cron.
   // Solo encolar. Esto mantiene la invocación programada por debajo
   // del límite de CPU de Workers Free.
   await env
@@ -2391,7 +1546,12 @@ async function runQueuedSync(
       "POSTGRESQL",
 
     via:
-      "HYPERDRIVE"
+      "HYPERDRIVE",
+
+    syncMode:
+      days >= 30
+        ? "FULL_RECONCILE"
+        : "FAST_INCREMENTAL"
   };
 
 
@@ -2470,17 +1630,21 @@ async function runQueuedSync(
                 ?.transactionCommitted
             ),
 
-          d1Modified:
-            Boolean(
-              result
-                ?.d1Modified
-            ),
+          postgresOnly:
+            true,
 
           dbQueriesEstimated:
             Number(
               syncResult
-                ?.d1QueriesEstimated ||
+                ?.dbQueriesEstimated ||
               0
+            ),
+
+          fullApiReconcile:
+            Boolean(
+              syncResult
+                ?.crossSource
+                ?.fullApiFetched
             )
         }
       }
@@ -2569,10 +1733,10 @@ async function runQueuedSync(
 
 
 // ============================================================
-// D1 - FASE 2
+// AUTENTICACIÓN ADMINISTRADOR
 // ============================================================
 
-function checkD1AdminToken(
+function checkAdminToken(
   request,
   env
 ) {
@@ -2622,7 +1786,7 @@ function checkD1AdminToken(
 
 
 
-function d1RequireDateRange(
+function requireDateRange(
   params
 ) {
 
@@ -2967,490 +2131,6 @@ function guatemalaMonthKey() {
 
 
 
-async function sellerTargetsList(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const month =
-    validTargetMonth(
-      params.get(
-        "month"
-      ) ||
-      guatemalaMonthKey()
-    );
-
-
-  const [
-    sellersResult,
-    targetResult
-  ] =
-    await env.DB.batch([
-
-      env.DB.prepare(
-`SELECT seller_name, priority
-FROM (
-  SELECT advisor AS seller_name, 1 AS priority
-  FROM report_orders
-  WHERE advisor IS NOT NULL
-    AND TRIM(advisor) <> ''
-
-  UNION ALL
-
-  SELECT seller_name, 2 AS priority
-  FROM zas_orders
-  WHERE seller_name IS NOT NULL
-    AND TRIM(seller_name) <> ''
-
-  UNION ALL
-
-  SELECT canonical_name AS seller_name, 3 AS priority
-  FROM pending_name_normalization
-  WHERE canonical_name IS NOT NULL
-    AND TRIM(canonical_name) <> ''
-)
-ORDER BY priority, seller_name COLLATE NOCASE`
-      ),
-
-      env.DB
-        .prepare(
-`SELECT
-  seller_key,
-  seller_name,
-  target_amount
-FROM seller_monthly_targets
-WHERE month = ?1
-ORDER BY seller_name COLLATE NOCASE`
-        )
-        .bind(
-          month
-        )
-
-    ]);
-
-
-  const targetMap =
-    new Map(
-      (
-        targetResult?.results ||
-        []
-      )
-        .map(
-          row => [
-            row.seller_key,
-            row
-          ]
-        )
-    );
-
-
-  const sellers =
-    new Map();
-
-
-  for (
-    const row
-    of (
-      sellersResult?.results ||
-      []
-    )
-  ) {
-
-    const name =
-      String(
-        row.seller_name ||
-        ""
-      )
-        .trim();
-
-
-    const key =
-      normalizeMatchText(
-        name
-      );
-
-
-    if (
-      !name ||
-      !key ||
-      sellers.has(
-        key
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    sellers.set(
-      key,
-      name
-    );
-
-  }
-
-
-  for (
-    const row
-    of (
-      targetResult?.results ||
-      []
-    )
-  ) {
-
-    if (
-      !sellers.has(
-        row.seller_key
-      )
-    ) {
-
-      sellers.set(
-        row.seller_key,
-        row.seller_name
-      );
-
-    }
-
-  }
-
-
-  const rows =
-    [
-      ...sellers.entries()
-    ]
-      .map(
-        ([
-          sellerKey,
-          seller
-        ]) => ({
-          sellerKey,
-          seller,
-          target:
-            round2(
-              numberValue(
-                targetMap.get(
-                  sellerKey
-                )?.target_amount
-              )
-            )
-        })
-      )
-      .sort(
-        (a, b) =>
-          a.seller.localeCompare(
-            b.seller,
-            "es"
-          )
-      );
-
-
-  return {
-    ok: true,
-    source:
-      "D1",
-    month,
-    rows
-  };
-
-}
-
-
-
-async function sellerTargetsSave(
-  env,
-  body
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const month =
-    validTargetMonth(
-      body?.month
-    );
-
-
-  const incoming =
-    Array.isArray(
-      body?.targets
-    )
-      ? body.targets
-      : [];
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  const statements = [];
-
-
-  for (
-    const item
-    of incoming
-  ) {
-
-    const seller =
-      String(
-        item?.seller ||
-        ""
-      )
-        .trim();
-
-
-    const sellerKey =
-      normalizeMatchText(
-        seller
-      );
-
-
-    const amount =
-      Number(
-        item?.amount ||
-        0
-      );
-
-
-    if (
-      !seller ||
-      !sellerKey ||
-      !Number.isFinite(
-        amount
-      ) ||
-      amount < 0
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      amount <= 0
-    ) {
-
-      statements.push(
-        env.DB
-          .prepare(
-`DELETE FROM seller_monthly_targets
-WHERE seller_key = ?1
-  AND month = ?2`
-          )
-          .bind(
-            sellerKey,
-            month
-          )
-      );
-
-      continue;
-
-    }
-
-
-    statements.push(
-      env.DB
-        .prepare(
-`INSERT INTO seller_monthly_targets (
-  seller_key,
-  seller_name,
-  month,
-  target_amount,
-  updated_at
-)
-VALUES (
-  ?1,?2,?3,?4,?5
-)
-ON CONFLICT(seller_key, month)
-DO UPDATE SET
-  seller_name = excluded.seller_name,
-  target_amount = excluded.target_amount,
-  updated_at = excluded.updated_at`
-        )
-        .bind(
-          sellerKey,
-          seller,
-          month,
-          round2(
-            amount
-          ),
-          now
-        )
-    );
-
-  }
-
-
-  if (
-    statements.length
-  ) {
-
-    await env.DB.batch(
-      statements
-    );
-
-  }
-
-
-  return {
-    ok: true,
-    month,
-    saved:
-      statements.length,
-    message:
-      "Metas mensuales guardadas."
-  };
-
-}
-
-
-
-async function sellerTargetsForRange(
-  env,
-  from,
-  to
-) {
-
-  const months =
-    rangeMonthKeys(
-      from,
-      to
-    );
-
-
-  if (
-    !months.length
-  ) {
-
-    return {
-      targets:
-        new Map(),
-      sellers:
-        new Map()
-    };
-
-  }
-
-
-  const placeholders =
-    months
-      .map(
-        (_, index) =>
-          "?" +
-          (
-            index + 1
-          )
-      )
-      .join(",");
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  seller_key,
-  seller_name,
-  month,
-  target_amount
-FROM seller_monthly_targets
-WHERE month IN (${placeholders})`
-      )
-      .bind(
-        ...months
-      )
-      .all();
-
-
-  const map =
-    new Map();
-
-  const sellers =
-    new Map();
-
-
-  for (
-    const row
-    of (
-      result?.results ||
-      []
-    )
-  ) {
-
-    if (
-      !map.has(
-        row.seller_key
-      )
-    ) {
-
-      map.set(
-        row.seller_key,
-        new Map()
-      );
-
-    }
-
-
-    map.get(
-      row.seller_key
-    )
-      .set(
-        row.month,
-        numberValue(
-          row.target_amount
-        )
-      );
-
-
-    if (
-      !sellers.has(
-        row.seller_key
-      )
-    ) {
-
-      sellers.set(
-        row.seller_key,
-        row.seller_name ||
-        row.seller_key
-      );
-
-    }
-
-  }
-
-
-  return {
-    targets:
-      map,
-    sellers
-  };
-
-}
 
 
 
@@ -3532,195 +2212,6 @@ function proratedTargetForRange(
 
 
 
-async function summaryTargetsByLevel(
-  env,
-  params,
-  from,
-  to
-) {
-
-  const targetInfo =
-    await sellerTargetsForRange(
-      env,
-      from,
-      to
-    );
-
-
-  const matchResult =
-    await env.DB
-      .prepare(
-`SELECT
-  match_key,
-  k_level,
-  segment
-FROM seller_report_match`
-      )
-      .all();
-
-
-  const classification =
-    new Map(
-      (
-        matchResult?.results ||
-        []
-      )
-        .map(
-          row => [
-            row.match_key,
-            {
-              level:
-                row.k_level ||
-                "K3",
-              segment:
-                row.segment ||
-                "DIGITAL"
-            }
-          ]
-        )
-    );
-
-
-  const selectedGroup =
-    String(
-      params.get(
-        "group"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  const selectedAdvisor =
-    normalizeMatchText(
-      params.get(
-        "advisor"
-      ) ||
-      ""
-    );
-
-
-  const selectedSegment =
-    String(
-      params.get(
-        "type"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  const totals = {
-    K1: 0,
-    K2: 0,
-    K3: 0
-  };
-
-
-  for (
-    const [
-      sellerKey,
-      sellerName
-    ]
-    of targetInfo.sellers.entries()
-  ) {
-
-    if (
-      selectedAdvisor &&
-      selectedAdvisor !==
-        sellerKey
-    ) {
-      continue;
-    }
-
-
-    const rule =
-      classification.get(
-        sellerKey
-      ) ||
-      {
-        level:
-          "K3",
-        segment:
-          "DIGITAL"
-      };
-
-
-    const level =
-      [
-        "K1",
-        "K2",
-        "K3"
-      ]
-        .includes(
-          rule.level
-        )
-          ? rule.level
-          : "K3";
-
-
-    const segment =
-      [
-        "DIGITAL",
-        "PETAPA",
-        "XENACOJ"
-      ]
-        .includes(
-          rule.segment
-        )
-          ? rule.segment
-          : "DIGITAL";
-
-
-    if (
-      selectedGroup &&
-      selectedGroup !==
-        level
-    ) {
-      continue;
-    }
-
-
-    if (
-      selectedSegment &&
-      selectedSegment !==
-        segment
-    ) {
-      continue;
-    }
-
-
-    totals[
-      level
-    ] +=
-      proratedTargetForRange(
-        sellerName,
-        from,
-        to,
-        targetInfo.targets
-      );
-
-  }
-
-
-  return {
-    K1:
-      round2(
-        totals.K1
-      ),
-    K2:
-      round2(
-        totals.K2
-      ),
-    K3:
-      round2(
-        totals.K3
-      )
-  };
-
-}
-
-
 
 function trendForCurrentMonth(
   amount,
@@ -3785,2307 +2276,26 @@ function trendForCurrentMonth(
 
 
 
-async function d1Summary(
-  env,
-  params
-) {
 
-  if (!env.DB) {
 
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
 
-  }
 
 
-  await ensureReportRulesSchema(
-    env
-  );
 
 
-  await ensureReportOrdersFresh(
-    env
-  );
 
 
-  const labelInfo =
-    await getReportGroupLabels(
-      env
-    );
 
 
-  const filter =
-    d1BuildReportFilter(
-      params,
-      "effective_level",
-      "effective_segment"
-    );
 
 
-  const effectiveCte =
-    sellerReportEffectiveCteSql();
 
 
-  const matrixSql =
-effectiveCte +
-`SELECT
-  effective_level AS level,
 
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'DIGITAL'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS DIGITAL,
 
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'PETAPA'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS PETAPA,
 
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'XENACOJ'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS XENACOJ,
 
-  ROUND(
-    SUM(amount),
-    2
-  ) AS TOTAL
-
-FROM effective
-
-WHERE ${filter.where}
-
-GROUP BY effective_level
-
-ORDER BY
-  CASE effective_level
-    WHEN 'K1' THEN 1
-    WHEN 'K2' THEN 2
-    WHEN 'K3' THEN 3
-    ELSE 99
-  END`;
-
-
-  const chartSql =
-effectiveCte +
-`SELECT
-  report_date AS date,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_level = 'K1'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS amountK1,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_level = 'K2'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS amountK2,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_level = 'K3'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS amountK3,
-
-  ROUND(
-    SUM(amount),
-    2
-  ) AS total
-
-FROM effective
-
-WHERE ${filter.where}
-
-GROUP BY report_date
-
-ORDER BY report_date`;
-
-
-  const kpiSql =
-effectiveCte +
-`SELECT
-  COUNT(*) AS orders,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN source = 'ZASCONNECT'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS zasConnect,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN source = 'PDV BO/VT'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS pdvAdded,
-
-  ROUND(
-    SUM(amount),
-    2
-  ) AS total
-
-FROM effective
-
-WHERE ${filter.where}`;
-
-
-  const [
-    matrixResult,
-    chartResult,
-    kpiResultRaw
-  ] =
-    await env.DB.batch([
-
-      d1BindStatement(
-        env.DB.prepare(
-          matrixSql
-        ),
-        filter.values
-      ),
-
-      d1BindStatement(
-        env.DB.prepare(
-          chartSql
-        ),
-        filter.values
-      ),
-
-      d1BindStatement(
-        env.DB.prepare(
-          kpiSql
-        ),
-        filter.values
-      )
-
-    ]);
-
-
-  const byLevel =
-    new Map(
-      (
-        matrixResult?.results ||
-        []
-      )
-        .map(
-          row => [
-            row.level,
-            row
-          ]
-        )
-    );
-
-
-  const targetsByLevel =
-    await summaryTargetsByLevel(
-      env,
-      params,
-      filter.from,
-      filter.to
-    );
-
-
-  const rows =
-    [
-      "K1",
-      "K2",
-      "K3"
-    ]
-      .map(
-        level => {
-
-          const source =
-            byLevel.get(
-              level
-            ) ||
-            {};
-
-
-          return {
-            level,
-
-            grupo:
-              labelInfo.labels[
-                level
-              ] ||
-              level,
-
-            DIGITAL:
-              round2(
-                numberValue(
-                  source.DIGITAL
-                )
-              ),
-
-            PETAPA:
-              round2(
-                numberValue(
-                  source.PETAPA
-                )
-              ),
-
-            XENACOJ:
-              round2(
-                numberValue(
-                  source.XENACOJ
-                )
-              ),
-
-            TOTAL:
-              round2(
-                numberValue(
-                  source.TOTAL
-                )
-              ),
-
-            META:
-              round2(
-                targetsByLevel[
-                  level
-                ] ||
-                0
-              ),
-
-            TENDENCIA:
-              trendForCurrentMonth(
-                numberValue(
-                  source.TOTAL
-                ),
-                filter.from,
-                filter.to
-              )
-          };
-
-        }
-      );
-
-
-  rows.push({
-    level:
-      "TOTAL",
-
-    grupo:
-      "RESUMEN",
-
-    DIGITAL:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.DIGITAL
-          )
-        )
-      ),
-
-    PETAPA:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.PETAPA
-          )
-        )
-      ),
-
-    XENACOJ:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.XENACOJ
-          )
-        )
-      ),
-
-    TOTAL:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.TOTAL
-          )
-        )
-      ),
-
-    META:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.META
-          )
-        )
-      ),
-
-    TENDENCIA:
-      trendForCurrentMonth(
-        sum(
-          rows.map(
-            row =>
-              row.TOTAL
-          )
-        ),
-        filter.from,
-        filter.to
-      )
-  });
-
-
-  const chart =
-    (
-      chartResult?.results ||
-      []
-    )
-      .map(
-        row => {
-
-          const total =
-            numberValue(
-              row.total
-            );
-
-
-          const k1 =
-            numberValue(
-              row.amountK1
-            );
-
-
-          const k2 =
-            numberValue(
-              row.amountK2
-            );
-
-
-          const k3 =
-            numberValue(
-              row.amountK3
-            );
-
-
-          return {
-            date:
-              row.date,
-
-            K1:
-              total
-                ? round2(
-                    k1 /
-                    total *
-                    100
-                  )
-                : 0,
-
-            K2:
-              total
-                ? round2(
-                    k2 /
-                    total *
-                    100
-                  )
-                : 0,
-
-            K3:
-              total
-                ? round2(
-                    k3 /
-                    total *
-                    100
-                  )
-                : 0,
-
-            amountK1:
-              round2(
-                k1
-              ),
-
-            amountK2:
-              round2(
-                k2
-              ),
-
-            amountK3:
-              round2(
-                k3
-              ),
-
-            total:
-              round2(
-                total
-              )
-          };
-
-        }
-      );
-
-
-  const kpi =
-    (
-      kpiResultRaw?.results ||
-      []
-    )[0] ||
-    {};
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    range: {
-      from:
-        filter.from,
-
-      to:
-        filter.to
-    },
-
-    groupLabels:
-      labelInfo.labels,
-
-    rows,
-
-    chart,
-
-    kpis: {
-      zasConnect:
-        round2(
-          numberValue(
-            kpi.zasConnect
-          )
-        ),
-
-      pdvAdded:
-        round2(
-          numberValue(
-            kpi.pdvAdded
-          )
-        ),
-
-      total:
-        round2(
-          numberValue(
-            kpi.total
-          )
-        ),
-
-      orders:
-        Number(
-          kpi.orders ||
-          0
-        ),
-
-      target:
-        round2(
-          rows[
-            rows.length - 1
-          ]?.META ||
-          0
-        ),
-
-      trend:
-        round2(
-          rows[
-            rows.length - 1
-          ]?.TENDENCIA ||
-          0
-        )
-    }
-  };
-
-}
-
-
-
-async function d1AdvisorSummary(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  await ensureReportOrdersFresh(
-    env
-  );
-
-
-  const {
-    from,
-    to
-  } =
-    d1RequireDateRange(
-      params
-    );
-
-
-  const sql =
-sellerReportEffectiveCteSql() +
-`SELECT
-  advisor AS ASESOR,
-
-  ROUND(
-    SUM(amount),
-    2
-  ) AS MONTO,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'DIGITAL'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS DIGITAL,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'PETAPA'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS PETAPA,
-
-  ROUND(
-    SUM(
-      CASE
-        WHEN effective_segment = 'XENACOJ'
-        THEN amount
-        ELSE 0
-      END
-    ),
-    2
-  ) AS XENACOJ
-
-FROM effective
-
-WHERE report_date
-BETWEEN ?1 AND ?2
-
-GROUP BY advisor
-
-ORDER BY MONTO DESC,
-         ASESOR ASC`;
-
-
-  const result =
-    await env.DB
-      .prepare(
-        sql
-      )
-      .bind(
-        from,
-        to
-      )
-      .all();
-
-
-  const targetInfo =
-    await sellerTargetsForRange(
-      env,
-      from,
-      to
-    );
-
-
-  const targetMap =
-    targetInfo.targets;
-
-
-  const rows =
-    (
-      result?.results ||
-      []
-    )
-      .map(
-        row => ({
-          ASESOR:
-            row.ASESOR,
-
-          MONTO:
-            round2(
-              numberValue(
-                row.MONTO
-              )
-            ),
-
-          DIGITAL:
-            round2(
-              numberValue(
-                row.DIGITAL
-              )
-            ),
-
-          PETAPA:
-            round2(
-              numberValue(
-                row.PETAPA
-              )
-            ),
-
-          XENACOJ:
-            round2(
-              numberValue(
-                row.XENACOJ
-              )
-            ),
-
-          META:
-            proratedTargetForRange(
-              row.ASESOR,
-              from,
-              to,
-              targetMap
-            ),
-
-          TENDENCIA:
-            trendForCurrentMonth(
-              row.MONTO,
-              from,
-              to
-            )
-        })
-      );
-
-
-  const existingSellerKeys =
-    new Set(
-      rows.map(
-        row =>
-          normalizeMatchText(
-            row.ASESOR
-          )
-      )
-    );
-
-
-  for (
-    const [
-      sellerKey,
-      sellerName
-    ]
-    of targetInfo.sellers.entries()
-  ) {
-
-    if (
-      existingSellerKeys.has(
-        sellerKey
-      )
-    ) {
-      continue;
-    }
-
-
-    rows.push({
-      ASESOR:
-        sellerName,
-      MONTO:
-        0,
-      DIGITAL:
-        0,
-      PETAPA:
-        0,
-      XENACOJ:
-        0,
-      META:
-        proratedTargetForRange(
-          sellerName,
-          from,
-          to,
-          targetMap
-        ),
-      TENDENCIA:
-        0
-    });
-
-  }
-
-
-  rows.sort(
-    (a, b) =>
-      Number(
-        b.MONTO ||
-        0
-      ) -
-      Number(
-        a.MONTO ||
-        0
-      ) ||
-      String(
-        a.ASESOR ||
-        ""
-      )
-        .localeCompare(
-          String(
-            b.ASESOR ||
-            ""
-          ),
-          "es"
-        )
-  );
-
-
-  const totalRow = {
-    ASESOR:
-      "TOTAL",
-
-    MONTO:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.MONTO
-          )
-        )
-      ),
-
-    DIGITAL:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.DIGITAL
-          )
-        )
-      ),
-
-    PETAPA:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.PETAPA
-          )
-        )
-      ),
-
-    XENACOJ:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.XENACOJ
-          )
-        )
-      ),
-
-    META:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.META
-          )
-        )
-      ),
-
-    TENDENCIA:
-      trendForCurrentMonth(
-        sum(
-          rows.map(
-            row =>
-              row.MONTO
-          )
-        ),
-        from,
-        to
-      )
-  };
-
-
-  rows.push(
-    totalRow
-  );
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    range: {
-      from,
-      to
-    },
-
-    rows,
-
-    kpis: {
-      advisors:
-        Math.max(
-          0,
-          rows.length -
-          1
-        ),
-
-      total:
-        totalRow.MONTO,
-
-      digital:
-        totalRow.DIGITAL,
-
-      petapa:
-        totalRow.PETAPA,
-
-      xenacoj:
-        totalRow.XENACOJ,
-
-      target:
-        totalRow.META,
-
-      trend:
-        totalRow.TENDENCIA
-    }
-  };
-
-}
-
-
-
-
-
-
-
-
-async function d1TrackingDiagnostic(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const tracking =
-    normId(
-      params.get(
-        "tracking"
-      )
-    );
-
-
-  if (!tracking) {
-
-    throw new Error(
-      "Envía tracking=CODIGO."
-    );
-
-  }
-
-
-  const [
-    zas,
-    loaded,
-    report
-  ] =
-    await env.DB.batch([
-
-      env.DB
-        .prepare(
-`SELECT *
-FROM zas_orders
-WHERE tracking_code = ?1`
-        )
-        .bind(
-          tracking
-        ),
-
-      env.DB
-        .prepare(
-`SELECT *
-FROM loaded_refs
-WHERE tracking_code = ?1`
-        )
-        .bind(
-          tracking
-        ),
-
-      env.DB
-        .prepare(
-`SELECT *
-FROM report_orders
-WHERE tracking_code = ?1`
-        )
-        .bind(
-          tracking
-        )
-
-    ]);
-
-
-  return {
-    ok:
-      true,
-
-    source:
-      "D1",
-
-    tracking,
-
-    zas_orders:
-      zas?.results ||
-      [],
-
-    loaded_refs:
-      loaded?.results ||
-      [],
-
-    report_orders:
-      report?.results ||
-      []
-  };
-
-}
-
-
-
-async function d1ZasDay(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const date =
-    String(
-      params.get(
-        "date"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      date
-    )
-  ) {
-
-    throw new Error(
-      "Envía date=YYYY-MM-DD."
-    );
-
-  }
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code,
-  seller_name,
-  order_date,
-  order_total,
-  source_updated_at,
-  synced_at
-FROM zas_orders
-WHERE order_date = ?1
-ORDER BY
-  seller_name,
-  tracking_code`
-      )
-      .bind(
-        date
-      )
-      .all();
-
-
-  const rows =
-    result?.results ||
-    [];
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    date,
-
-    rows,
-
-    count:
-      rows.length,
-
-    total:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.order_total
-          )
-        )
-      )
-  };
-
-}
-
-
-
-async function d1BoVtDay(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const date =
-    String(
-      params.get(
-        "date"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      date
-    )
-  ) {
-
-    throw new Error(
-      "Envía date=YYYY-MM-DD."
-    );
-
-  }
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code,
-  is_pdv,
-  report_date,
-  route,
-  channel,
-  group_name,
-  bo_amount,
-  vt_amount,
-  chosen_amount
-FROM loaded_refs
-WHERE report_date = ?1
-ORDER BY
-  route,
-  tracking_code`
-      )
-      .bind(
-        date
-      )
-      .all();
-
-
-  return {
-    ok: true,
-    source:
-      "D1",
-    date,
-    rows:
-      result?.results ||
-      []
-  };
-
-}
-
-
-
-async function d1AdvisorDay(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportOrdersFresh(
-    env
-  );
-
-
-  const date =
-    String(
-      params.get(
-        "date"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      date
-    )
-  ) {
-
-    throw new Error(
-      "Envía date=YYYY-MM-DD."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const sql =
-sellerReportEffectiveCteSql() +
-`SELECT
-  advisor,
-  seller_original,
-  source,
-  effective_segment AS channel,
-  effective_level AS level,
-  tracking_code,
-  amount
-FROM effective
-WHERE report_date = ?1
-ORDER BY
-  advisor,
-  source,
-  tracking_code`;
-
-
-  const result =
-    await env.DB
-      .prepare(
-        sql
-      )
-      .bind(
-        date
-      )
-      .all();
-
-
-  const rows =
-    result?.results ||
-    [];
-
-
-  const totals = {};
-
-
-  for (
-    const row
-    of rows
-  ) {
-
-    const advisor =
-      row.advisor ||
-      "SIN ASIGNAR";
-
-
-    if (!totals[advisor]) {
-
-      totals[advisor] = {
-        total: 0,
-        ZASCONNECT: 0,
-        "PDV BO/VT": 0,
-        PETAPA: 0,
-        XENACOJ: 0,
-        DIGITAL: 0
-      };
-
-    }
-
-
-    totals[
-      advisor
-    ].total =
-      round2(
-        totals[
-          advisor
-        ].total +
-        numberValue(
-          row.amount
-        )
-      );
-
-
-    if (
-      totals[
-        advisor
-      ][
-        row.source
-      ] !==
-      undefined
-    ) {
-
-      totals[
-        advisor
-      ][
-        row.source
-      ] =
-        round2(
-          totals[
-            advisor
-          ][
-            row.source
-          ] +
-          numberValue(
-            row.amount
-          )
-        );
-
-    }
-
-
-    if (
-      totals[
-        advisor
-      ][
-        row.channel
-      ] !==
-      undefined
-    ) {
-
-      totals[
-        advisor
-      ][
-        row.channel
-      ] =
-        round2(
-          totals[
-            advisor
-          ][
-            row.channel
-          ] +
-          numberValue(
-            row.amount
-          )
-        );
-
-    }
-
-  }
-
-
-  return {
-    ok: true,
-    source:
-      "D1",
-    date,
-    rows,
-    totals
-  };
-
-}
-
-
-
-async function d1PdvDay(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const date =
-    String(
-      params.get(
-        "date"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      date
-    )
-  ) {
-
-    throw new Error(
-      "Envía date=YYYY-MM-DD."
-    );
-
-  }
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code,
-  report_date,
-  advisor,
-  seller_original,
-  level,
-  channel,
-  amount,
-  source
-FROM report_orders
-WHERE report_date = ?1
-  AND (
-    source = 'PDV BO/VT'
-    OR order_type = 'PDV'
-  )
-ORDER BY
-  channel,
-  advisor,
-  tracking_code`
-      )
-      .bind(
-        date
-      )
-      .all();
-
-
-  const rows =
-    result?.results ||
-    [];
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    date,
-
-    rows,
-
-    totals: {
-      PETAPA:
-        round2(
-          sum(
-            rows
-              .filter(
-                row =>
-                  row.channel ===
-                  "PETAPA"
-              )
-              .map(
-                row =>
-                  row.amount
-              )
-          )
-        ),
-
-      XENACOJ:
-        round2(
-          sum(
-            rows
-              .filter(
-                row =>
-                  row.channel ===
-                  "XENACOJ"
-              )
-              .map(
-                row =>
-                  row.amount
-              )
-          )
-        ),
-
-      DIGITAL:
-        round2(
-          sum(
-            rows
-              .filter(
-                row =>
-                  row.channel ===
-                  "DIGITAL"
-              )
-              .map(
-                row =>
-                  row.amount
-              )
-          )
-        )
-    }
-  };
-
-}
-
-
-
-async function d1DateCounts(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const from =
-    params.get(
-      "date_from"
-    ) ||
-    "1900-01-01";
-
-
-  const to =
-    params.get(
-      "date_to"
-    ) ||
-    "2999-12-31";
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  report_date AS date,
-  COUNT(*) AS orders,
-  ROUND(SUM(amount),2) AS total
-FROM report_orders
-WHERE report_date
-BETWEEN ?1 AND ?2
-GROUP BY report_date
-ORDER BY report_date`
-      )
-      .bind(
-        from,
-        to
-      )
-      .all();
-
-
-  const summary =
-    await env.DB
-      .prepare(
-`SELECT
-  MIN(report_date) AS minDate,
-  MAX(report_date) AS maxDate,
-  COUNT(*) AS orders,
-  COUNT(DISTINCT report_date) AS days
-FROM report_orders
-WHERE report_date
-BETWEEN ?1 AND ?2`
-      )
-      .bind(
-        from,
-        to
-      )
-      .first();
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    range: {
-      from,
-      to
-    },
-
-    minDate:
-      summary?.minDate ||
-      null,
-
-    maxDate:
-      summary?.maxDate ||
-      null,
-
-    orders:
-      Number(
-        summary?.orders ||
-        0
-      ),
-
-    days:
-      Number(
-        summary?.days ||
-        0
-      ),
-
-    rows:
-      result?.results ||
-      []
-  };
-
-}
-
-
-
-async function d1NotLoaded(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const page =
-    Math.max(
-      1,
-      Number(
-        params.get(
-          "page"
-        ) ||
-        1
-      ) ||
-      1
-    );
-
-
-  const pageSize =
-    Math.min(
-      100,
-      Math.max(
-        1,
-        Number(
-          params.get(
-            "page_size"
-          ) ||
-          100
-        ) ||
-        100
-      )
-    );
-
-
-  const offset =
-    (
-      page -
-      1
-    ) *
-    pageSize;
-
-
-  const count =
-    await env.DB
-      .prepare(
-`SELECT
-  COUNT(*) AS total
-FROM zas_orders AS z
-LEFT JOIN loaded_refs AS l
-  ON l.tracking_code = z.tracking_code
-WHERE l.tracking_code IS NULL`
-      )
-      .first();
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  z.*
-FROM zas_orders AS z
-LEFT JOIN loaded_refs AS l
-  ON l.tracking_code = z.tracking_code
-WHERE l.tracking_code IS NULL
-ORDER BY
-  z.order_date DESC,
-  z.tracking_code
-LIMIT ?1
-OFFSET ?2`
-      )
-      .bind(
-        pageSize,
-        offset
-      )
-      .all();
-
-
-  const total =
-    Number(
-      count?.total ||
-      0
-    );
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    pagination: {
-      page,
-      pageSize,
-      total,
-      totalPages:
-        Math.max(
-          1,
-          Math.ceil(
-            total /
-            pageSize
-          )
-        )
-    },
-
-    rows:
-      result?.results ||
-      []
-  };
-
-}
-
-
-
-
-function d1BindStatement(
-  statement,
-  values
-) {
-
-  return statement.bind(
-    ...values
-  );
-
-}
-
-
-
-function d1BuildReportFilter(
-  params,
-  groupColumn =
-    "group_name",
-  segmentColumn =
-    "order_type"
-) {
-
-  const {
-    from,
-    to
-  } =
-    d1RequireDateRange(
-      params
-    );
-
-
-  const values = [
-    from,
-    to
-  ];
-
-
-  const conditions = [
-    "report_date BETWEEN ?1 AND ?2"
-  ];
-
-
-  const filters = [
-    [
-      "group",
-      groupColumn
-    ],
-    [
-      "advisor",
-      "advisor"
-    ],
-    [
-      "type",
-      segmentColumn
-    ],
-    [
-      "source",
-      "source"
-    ]
-  ];
-
-
-  for (
-    const [
-      param,
-      column
-    ]
-    of filters
-  ) {
-
-    const value =
-      String(
-        params.get(
-          param
-        ) ||
-        ""
-      )
-        .trim();
-
-
-    if (!value) {
-      continue;
-    }
-
-
-    values.push(
-      value
-    );
-
-
-    conditions.push(
-      `${column} = ?${values.length}`
-    );
-
-  }
-
-
-  return {
-    from,
-    to,
-
-    where:
-      conditions.join(
-        "\nAND "
-      ),
-
-    values
-  };
-
-}
-
-
-
-async function d1PublicStatus(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const [
-    syncResult,
-    orderResult
-  ] =
-    await env.DB.batch([
-
-      env.DB.prepare(
-`SELECT
-  source,
-  last_success_at,
-  range_from,
-  range_to,
-  records_seen,
-  records_changed,
-  metadata_json,
-  last_error
-FROM sync_state
-ORDER BY source`
-      ),
-
-      env.DB.prepare(
-        "SELECT COUNT(*) AS n FROM zas_orders"
-      )
-
-    ]);
-
-
-  const states =
-    syncResult?.results ||
-    [];
-
-
-  const bySource =
-    new Map(
-      states.map(
-        row => [
-          row.source,
-          row
-        ]
-      )
-    );
-
-
-  const bo =
-    bySource.get(
-      "BO_VT"
-    ) ||
-    {};
-
-
-  const zas =
-    bySource.get(
-      "ZASCONNECT"
-    ) ||
-    {};
-
-
-  const reports =
-    bySource.get(
-      "REPORTS"
-    ) ||
-    {};
-
-
-  const scheduler =
-    bySource.get(
-      "SCHEDULER"
-    ) ||
-    {};
-
-
-  let schedulerMeta = {};
-
-
-  try {
-
-    schedulerMeta =
-      JSON.parse(
-        scheduler.metadata_json ||
-        "{}"
-      );
-
-  } catch {
-
-    schedulerMeta = {};
-
-  }
-
-
-  let boMeta = {};
-
-
-  try {
-
-    boMeta =
-      JSON.parse(
-        bo.metadata_json ||
-        "{}"
-      );
-
-  } catch {
-
-    boMeta = {};
-
-  }
-
-
-  const lastSyncAt =
-    [
-      bo.last_success_at,
-      zas.last_success_at,
-      reports.last_success_at
-    ]
-      .filter(Boolean)
-      .sort()
-      .at(-1) ||
-    null;
-
-
-  const ageMinutes =
-    lastSyncAt
-      ? Math.max(
-          0,
-          Math.round(
-            (
-              Date.now() -
-              new Date(
-                lastSyncAt
-              ).getTime()
-            ) /
-            60000
-          )
-        )
-      : null;
-
-
-  const schedulerLastSuccess =
-    scheduler.last_success_at ||
-    null;
-
-
-  const schedulerAgeMinutes =
-    schedulerLastSuccess
-      ? Math.max(
-          0,
-          Math.round(
-            (
-              Date.now() -
-              new Date(
-                schedulerLastSuccess
-              ).getTime()
-            ) /
-            60000
-          )
-        )
-      : null;
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    googleSheets: {
-      ok:
-        !bo.last_error,
-
-      lastImport:
-        boMeta.lastImport ||
-        bo.last_success_at ||
-        null,
-
-      sourceModified:
-        boMeta.sourceModified ||
-        null,
-
-      lastSyncAt:
-        bo.last_success_at ||
-        null
-    },
-
-    zasConnect: {
-      ok:
-        !zas.last_error,
-
-      orders:
-        Number(
-          (
-            orderResult?.results ||
-            []
-          )[0]?.n ||
-          0
-        ),
-
-      lastSyncAt:
-        zas.last_success_at ||
-        null,
-
-      recordsChanged:
-        Number(
-          zas.records_changed ||
-          0
-        )
-    },
-
-    generatedAt:
-      lastSyncAt,
-
-    lastSyncAt,
-
-    ageMinutes,
-
-    stale:
-      ageMinutes ===
-        null ||
-      ageMinutes >
-        12,
-
-    scheduler: {
-      hasRun:
-        Boolean(
-          scheduler.last_started_at ||
-          scheduler.last_success_at
-        ),
-
-      lastStartedAt:
-        scheduler.last_started_at ||
-        scheduler.last_success_at ||
-        null,
-
-      lastSuccessAt:
-        schedulerLastSuccess,
-
-      cron:
-        schedulerMeta.cron ||
-        null,
-
-      days:
-        Number(
-          schedulerMeta.days ||
-          0
-        ),
-
-      event:
-        schedulerMeta.event ||
-        null,
-
-      lastError:
-        scheduler.last_error ||
-        null,
-
-      ageMinutes:
-        schedulerAgeMinutes,
-
-      stale:
-        !schedulerLastSuccess ||
-        schedulerAgeMinutes >
-          12
-    },
-
-    d1: {
-      rangeFrom:
-        reports.range_from ||
-        null,
-
-      rangeTo:
-        reports.range_to ||
-        null
-    },
-
-    cacheSeconds:
-      0
-  };
-
-}
-
-
-
-async function d1ReportOptions(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  await ensureReportOrdersFresh(
-    env
-  );
-
-
-  const [
-    result,
-    labelInfo
-  ] =
-    await Promise.all([
-
-      env.DB
-        .prepare(
-`SELECT
-  advisor,
-  source,
-  report_date
-FROM report_orders`
-        )
-        .all(),
-
-      getReportGroupLabels(
-        env
-      )
-
-    ]);
-
-
-  const rows =
-    result?.results ||
-    [];
-
-
-  const unique =
-    values =>
-      [
-        ...new Set(
-          values
-            .filter(Boolean)
-        )
-      ]
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            String(a)
-              .localeCompare(
-                String(b),
-                "es"
-              )
-        );
-
-
-  const dates =
-    rows
-      .map(
-        row =>
-          row.report_date
-      )
-      .filter(Boolean)
-      .sort();
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    groupLabels:
-      labelInfo.labels,
-
-    options: {
-      groups:
-        [
-          "K1",
-          "K2",
-          "K3"
-        ]
-          .map(
-            level => ({
-              value:
-                level,
-
-              label:
-                labelInfo.labels[
-                  level
-                ] ||
-                level
-            })
-          ),
-
-      advisors:
-        unique(
-          rows.map(
-            row =>
-              row.advisor
-          )
-        ),
-
-      types: [
-        "DIGITAL",
-        "PETAPA",
-        "XENACOJ"
-      ],
-
-      sources:
-        unique(
-          rows.map(
-            row =>
-              row.source
-          )
-        ),
-
-      minDate:
-        dates[0] ||
-        null,
-
-      maxDate:
-        dates.at(
-          -1
-        ) ||
-        null
-    }
-  };
-
-}
-
-
-
-function d1PendingJoinedToApi(
+function storedPendingJoinedToApi(
   row
 ) {
 
@@ -6374,7 +2584,7 @@ async function ensurePendingNameRulesSchema(
     (
       async () => {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `CREATE TABLE IF NOT EXISTS pending_name_normalization (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -6392,7 +2602,7 @@ async function ensurePendingNameRulesSchema(
 
 
         const state =
-          await env.DB
+          await env.PGDB
             .prepare(
 `SELECT
   source
@@ -6434,7 +2644,7 @@ WHERE source = 'NAME_NORMALIZATION'`
                     );
 
 
-                return env.DB
+                return env.PGDB
                   .prepare(
 `INSERT INTO pending_name_normalization (
   canonical_name,
@@ -6476,7 +2686,7 @@ VALUES (
             i += 40
           ) {
 
-            await env.DB.batch(
+            await env.PGDB.batch(
               statements.slice(
                 i,
                 i + 40
@@ -6486,7 +2696,7 @@ VALUES (
           }
 
 
-          await env.DB
+          await env.PGDB
             .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -6589,590 +2799,7 @@ function pendingNameRowToRule(
 
 
 
-async function getPendingNameRules(
-  env
-) {
 
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  n.id,
-  n.canonical_name,
-  n.alias1,
-  n.alias2,
-  n.alias3,
-  n.alias4,
-  n.alias5,
-  c.k_level,
-  c.segment
-
-FROM pending_name_normalization AS n
-
-LEFT JOIN seller_report_rule_rows AS c
-  ON c.normalization_id =
-     n.id
-
-ORDER BY
-  n.canonical_name COLLATE NOCASE,
-  n.id`
-      )
-      .all();
-
-
-  return (
-    result?.results ||
-    []
-  )
-    .map(
-      pendingNameRowToRule
-    );
-
-}
-
-
-
-async function pendingNameRulesList(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const [
-    rulesResult,
-    sellersResult
-  ] =
-    await env.DB.batch([
-
-      env.DB.prepare(
-`SELECT
-  n.id,
-  n.canonical_name,
-  n.alias1,
-  n.alias2,
-  n.alias3,
-  n.alias4,
-  n.alias5,
-  n.updated_at,
-  c.k_level,
-  c.segment
-
-FROM pending_name_normalization AS n
-
-LEFT JOIN seller_report_rule_rows AS c
-  ON c.normalization_id =
-     n.id
-
-ORDER BY
-  n.canonical_name COLLATE NOCASE,
-  n.id`
-      ),
-
-      env.DB.prepare(
-`SELECT
-  seller_name
-FROM zas_orders
-WHERE seller_name IS NOT NULL
-  AND TRIM(seller_name) <> ''
-GROUP BY seller_name
-ORDER BY seller_name COLLATE NOCASE`
-      )
-
-    ]);
-
-
-  const rules =
-    (
-      rulesResult?.results ||
-      []
-    )
-      .map(
-        row => ({
-          ...pendingNameRowToRule(
-            row
-          ),
-          updatedAt:
-            row.updated_at ||
-            null
-        })
-      );
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    rules,
-
-    rawSellers:
-      (
-        sellersResult?.results ||
-        []
-      )
-        .map(
-          row =>
-            row.seller_name
-        )
-        .filter(Boolean),
-
-    maxAliases:
-      5,
-
-    kLevels: [
-      "K1",
-      "K2",
-      "K3"
-    ],
-
-    segments: [
-      "DIGITAL",
-      "PETAPA",
-      "XENACOJ"
-    ],
-
-    reportLogic: {
-      apiDefault:
-        "DIGITAL",
-      pdvBoVt:
-        "TIENDA_FISICA",
-      physicalSegments: [
-        "PETAPA",
-        "XENACOJ"
-      ]
-    }
-  };
-
-}
-
-
-
-async function pendingNameRuleSave(
-  env,
-  body
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const id =
-    Number(
-      body?.id ||
-      0
-    );
-
-
-  const canonical =
-    String(
-      body?.canonical ??
-      ""
-    )
-      .trim();
-
-
-  const aliases =
-    (
-      Array.isArray(
-        body?.aliases
-      )
-        ? body.aliases
-        : []
-    )
-      .map(
-        value =>
-          String(
-            value ??
-            ""
-          )
-            .trim()
-      )
-      .filter(Boolean)
-      .filter(
-        (
-          value,
-          index,
-          values
-        ) =>
-          values.findIndex(
-            candidate =>
-              normalizeMatchText(
-                candidate
-              ) ===
-              normalizeMatchText(
-                value
-              )
-          ) ===
-          index
-      )
-      .filter(
-        value =>
-          normalizeMatchText(
-            value
-          ) !==
-          normalizeMatchText(
-            canonical
-          )
-      )
-      .slice(
-        0,
-        5
-      );
-
-
-  if (!canonical) {
-
-    throw new Error(
-      "Escribe el nombre final de la normalización."
-    );
-
-  }
-
-
-  const padded =
-    [
-      ...aliases,
-      "",
-      "",
-      "",
-      "",
-      ""
-    ]
-      .slice(
-        0,
-        5
-      );
-
-
-  const kLevel =
-    validReportK(
-      body?.kLevel
-    );
-
-
-  const segment =
-    validReportSegment(
-      body?.segment
-    );
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  let savedId =
-    id;
-
-
-  if (
-    id >
-    0
-  ) {
-
-    const existing =
-      await env.DB
-        .prepare(
-`SELECT id
-FROM pending_name_normalization
-WHERE id = ?1`
-        )
-        .bind(
-          id
-        )
-        .first();
-
-
-    if (!existing) {
-
-      throw new Error(
-        "La normalización ya no existe. Recarga la tabla."
-      );
-
-    }
-
-
-    await env.DB
-      .prepare(
-`UPDATE pending_name_normalization
-SET
-  canonical_name = ?2,
-  alias1 = ?3,
-  alias2 = ?4,
-  alias3 = ?5,
-  alias4 = ?6,
-  alias5 = ?7,
-  updated_at = ?8
-WHERE id = ?1`
-      )
-      .bind(
-        id,
-        canonical,
-        padded[0] ||
-          null,
-        padded[1] ||
-          null,
-        padded[2] ||
-          null,
-        padded[3] ||
-          null,
-        padded[4] ||
-          null,
-        now
-      )
-      .run();
-
-
-  } else {
-
-    const result =
-      await env.DB
-        .prepare(
-`INSERT INTO pending_name_normalization (
-  canonical_name,
-  alias1,
-  alias2,
-  alias3,
-  alias4,
-  alias5,
-  created_at,
-  updated_at
-)
-VALUES (
-  ?1,?2,?3,?4,?5,?6,?7,?7
-)
-RETURNING id`
-        )
-        .bind(
-          canonical,
-          padded[0] ||
-            null,
-          padded[1] ||
-            null,
-          padded[2] ||
-            null,
-          padded[3] ||
-            null,
-          padded[4] ||
-            null,
-          now
-        )
-        .first();
-
-
-    savedId =
-      Number(
-        result?.id ||
-        0
-      );
-
-  }
-
-
-  const reportRule =
-    await saveSellerReportRuleForNormalization(
-      env,
-      savedId,
-      kLevel,
-      segment
-    );
-
-
-  await env.DB
-    .prepare(
-`UPDATE sync_state
-SET
-  last_success_at = ?1,
-  records_changed = records_changed + 1,
-  metadata_json = ?2
-WHERE source = 'NAME_NORMALIZATION'`
-    )
-    .bind(
-      now,
-      JSON.stringify({
-        lastAction:
-          "SAVE",
-        maxAliasesPerRow:
-          5
-      })
-    )
-    .run();
-
-
-  return {
-    ok: true,
-
-    id:
-      savedId,
-
-    canonical,
-
-    aliases,
-
-    kLevel:
-      reportRule.kLevel,
-
-    segment:
-      reportRule.segment,
-
-    message:
-      "Normalización y clasificación guardadas."
-  };
-
-}
-
-
-
-async function pendingNameRuleDelete(
-  env,
-  idValue
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const id =
-    Number(
-      idValue ||
-      0
-    );
-
-
-  if (
-    !Number.isInteger(
-      id
-    ) ||
-    id <=
-      0
-  ) {
-
-    throw new Error(
-      "ID de normalización inválido."
-    );
-
-  }
-
-
-  await env.DB.batch([
-
-    env.DB.prepare(
-`DELETE FROM seller_report_match
-WHERE normalization_id = ?1`
-    )
-      .bind(
-        id
-      ),
-
-    env.DB.prepare(
-`DELETE FROM seller_report_rule_rows
-WHERE normalization_id = ?1`
-    )
-      .bind(
-        id
-      )
-
-  ]);
-
-
-  const result =
-    await env.DB
-      .prepare(
-`DELETE FROM pending_name_normalization
-WHERE id = ?1`
-      )
-      .bind(
-        id
-      )
-      .run();
-
-
-  await rebuildSellerReportMatch(
-    env
-  );
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  await env.DB
-    .prepare(
-`UPDATE sync_state
-SET
-  last_success_at = ?1,
-  records_changed = records_changed + 1,
-  metadata_json = ?2
-WHERE source = 'NAME_NORMALIZATION'`
-    )
-    .bind(
-      now,
-      JSON.stringify({
-        lastAction:
-          "DELETE",
-        maxAliasesPerRow:
-          5
-      })
-    )
-    .run();
-
-
-  return {
-    ok: true,
-
-    id,
-
-    deleted:
-      Number(
-        result?.meta?.changes ||
-        0
-      ) >
-      0,
-
-    message:
-      "Normalización eliminada."
-  };
-
-}
 
 
 
@@ -7507,7 +3134,7 @@ async function ensureJuanGlendaSeparated(
   // ni fuerza K/Segmento de Juan o Glenda.
 
   const migration =
-    await env.DB
+    await env.PGDB
       .prepare(
 `SELECT source
 FROM sync_state
@@ -7531,7 +3158,7 @@ WHERE source = 'REPORT_IDENTITY_RULES_V2'`
       .toISOString();
 
 
-  await env.DB
+  await env.PGDB
     .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -7590,9 +3217,9 @@ async function ensureReportRulesSchema(
         );
 
 
-        await env.DB.batch([
+        await env.PGDB.batch([
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS report_group_labels (
   level TEXT PRIMARY KEY CHECK (
     level IN ('K1','K2','K3')
@@ -7603,7 +3230,7 @@ async function ensureReportRulesSchema(
 )`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS seller_report_rule_rows (
   normalization_id INTEGER PRIMARY KEY,
   k_level TEXT CHECK (
@@ -7618,7 +3245,7 @@ async function ensureReportRulesSchema(
 )`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS seller_report_match (
   match_key TEXT PRIMARY KEY,
   normalization_id INTEGER NOT NULL,
@@ -7629,12 +3256,12 @@ async function ensureReportRulesSchema(
 )`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE INDEX IF NOT EXISTS idx_seller_report_match_norm
 ON seller_report_match(normalization_id)`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS seller_monthly_targets (
   seller_key TEXT NOT NULL,
   seller_name TEXT NOT NULL,
@@ -7645,12 +3272,12 @@ ON seller_report_match(normalization_id)`
 )`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `CREATE INDEX IF NOT EXISTS idx_seller_monthly_targets_month
 ON seller_monthly_targets(month)`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `INSERT INTO report_group_labels (
   level,
   display_name,
@@ -7663,7 +3290,7 @@ VALUES (
 ON CONFLICT(level) DO NOTHING`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `INSERT INTO report_group_labels (
   level,
   display_name,
@@ -7676,7 +3303,7 @@ VALUES (
 ON CONFLICT(level) DO NOTHING`
           ),
 
-          env.DB.prepare(
+          env.PGDB.prepare(
 `INSERT INTO report_group_labels (
   level,
   display_name,
@@ -7693,7 +3320,7 @@ ON CONFLICT(level) DO NOTHING`
 
 
         const seedState =
-          await env.DB
+          await env.PGDB
             .prepare(
 `SELECT source
 FROM sync_state
@@ -7705,7 +3332,7 @@ WHERE source = 'SELLER_REPORT_RULES_SEED_V1'`
         if (!seedState) {
 
           const rowsResult =
-            await env.DB
+            await env.PGDB
               .prepare(
 `SELECT
   id,
@@ -7841,7 +3468,7 @@ ORDER BY id`
 
 
               const inserted =
-                await env.DB
+                await env.PGDB
                   .prepare(
 `INSERT INTO pending_name_normalization (
   canonical_name,
@@ -7893,7 +3520,7 @@ RETURNING
                 .toISOString();
 
 
-            await env.DB
+            await env.PGDB
               .prepare(
 `INSERT INTO seller_report_rule_rows (
   normalization_id,
@@ -7941,7 +3568,7 @@ DO UPDATE SET
               .toISOString();
 
 
-          await env.DB
+          await env.PGDB
             .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -7973,7 +3600,7 @@ VALUES (
         } else {
 
           const matchCount =
-            await env.DB
+            await env.PGDB
               .prepare(
 `SELECT COUNT(*) AS n
 FROM seller_report_match`
@@ -8029,7 +3656,7 @@ async function rebuildSellerReportMatch(
 ) {
 
   const result =
-    await env.DB
+    await env.PGDB
       .prepare(
 `SELECT
   n.id,
@@ -8289,7 +3916,7 @@ ORDER BY n.id`
   }
 
 
-  await env.DB
+  await env.PGDB
     .prepare(
       "DELETE FROM seller_report_match"
     )
@@ -8323,10 +3950,10 @@ ORDER BY n.id`
     }
 
 
-    await env.DB.batch(
+    await env.PGDB.batch(
       chunk.map(
         item =>
-          env.DB
+          env.PGDB
             .prepare(
 `INSERT INTO seller_report_match (
   match_key,
@@ -8370,336 +3997,7 @@ DO UPDATE SET
 
 
 
-async function saveSellerReportRuleForNormalization(
-  env,
-  normalizationId,
-  kLevelValue,
-  segmentValue
-) {
 
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const normalizationIdNumber =
-    Number(
-      normalizationId
-    );
-
-
-  const kLevel =
-    validReportK(
-      kLevelValue
-    );
-
-
-  const segment =
-    validReportSegment(
-      segmentValue
-    );
-
-
-  if (
-    !kLevel &&
-    !segment
-  ) {
-
-    await env.DB
-      .prepare(
-`DELETE FROM seller_report_rule_rows
-WHERE normalization_id = ?1`
-      )
-      .bind(
-        normalizationIdNumber
-      )
-      .run();
-
-  } else {
-
-    const now =
-      new Date()
-        .toISOString();
-
-
-    await env.DB
-      .prepare(
-`INSERT INTO seller_report_rule_rows (
-  normalization_id,
-  k_level,
-  segment,
-  updated_at
-)
-VALUES (
-  ?1,?2,?3,?4
-)
-ON CONFLICT(normalization_id)
-DO UPDATE SET
-  k_level = excluded.k_level,
-  segment = excluded.segment,
-  updated_at = excluded.updated_at`
-      )
-      .bind(
-        normalizationIdNumber,
-        kLevel,
-        segment,
-        now
-      )
-      .run();
-
-  }
-
-
-  await rebuildSellerReportMatch(
-    env
-  );
-
-
-  return {
-    kLevel,
-    segment
-  };
-
-}
-
-
-
-async function getReportGroupLabels(
-  env
-) {
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  level,
-  display_name,
-  sort_order
-FROM report_group_labels
-ORDER BY sort_order, level`
-      )
-      .all();
-
-
-  const labels = {
-    K1:
-      "K1",
-    K2:
-      "K2",
-    K3:
-      "K3"
-  };
-
-
-  for (
-    const row
-    of (
-      result?.results ||
-      []
-    )
-  ) {
-
-    if (
-      labels[
-        row.level
-      ] !==
-      undefined
-    ) {
-
-      labels[
-        row.level
-      ] =
-        String(
-          row.display_name ||
-          row.level
-        );
-
-    }
-
-  }
-
-
-  return {
-    labels,
-    rows:
-      result?.results ||
-      []
-  };
-
-}
-
-
-
-async function reportConfigGet(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const info =
-    await getReportGroupLabels(
-      env
-    );
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    labels:
-      info.labels,
-
-    note:
-      "Los nombres visuales no modifican el código interno K1/K2/K3. K y segmento por vendedor se configuran en ⚙ NOMBRES."
-  };
-
-}
-
-
-
-async function reportConfigSaveLabels(
-  env,
-  body
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureReportRulesSchema(
-    env
-  );
-
-
-  const incoming =
-    body?.labels ||
-    {};
-
-
-  const values = {
-    K1:
-      String(
-        incoming.K1 ??
-        ""
-      )
-        .trim(),
-
-    K2:
-      String(
-        incoming.K2 ??
-        ""
-      )
-        .trim(),
-
-    K3:
-      String(
-        incoming.K3 ??
-        ""
-      )
-        .trim()
-  };
-
-
-  for (
-    const level
-    of [
-      "K1",
-      "K2",
-      "K3"
-    ]
-  ) {
-
-    if (
-      !values[
-        level
-      ]
-    ) {
-
-      throw new Error(
-        "Los nombres visuales K1, K2 y K3 son obligatorios."
-      );
-
-    }
-
-  }
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  await env.DB.batch(
-    [
-      "K1",
-      "K2",
-      "K3"
-    ]
-      .map(
-        (
-          level,
-          index
-        ) =>
-          env.DB
-            .prepare(
-`INSERT INTO report_group_labels (
-  level,
-  display_name,
-  sort_order,
-  updated_at
-)
-VALUES (
-  ?1,?2,?3,?4
-)
-ON CONFLICT(level)
-DO UPDATE SET
-  display_name = excluded.display_name,
-  sort_order = excluded.sort_order,
-  updated_at = excluded.updated_at`
-            )
-            .bind(
-              level,
-              values[
-                level
-              ],
-              index +
-              1,
-              now
-            )
-      )
-  );
-
-
-  return {
-    ok: true,
-
-    labels:
-      values,
-
-    message:
-      "Nombres visuales guardados."
-  };
-
-}
 
 
 
@@ -8809,354 +4107,7 @@ WITH effective AS (
 
 
 
-async function d1NotLoadedDashboard(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureManualSapSchema(
-    env
-  );
-
-
-  // Cabeceras y líneas se consultan por separado.
-  // Así una orden pendiente con 5 filas reales en zas_order_lines
-  // siempre produce 5 filas visibles en Órdenes no cargadas.
-
-  const [
-    ordersResult,
-    linesResult
-  ] =
-    await env.DB.batch([
-
-      env.DB.prepare(
-`SELECT
-  z.*
-
-FROM zas_orders AS z
-
-LEFT JOIN loaded_refs AS r
-  ON r.tracking_code =
-     z.tracking_code
-
-LEFT JOIN manual_sap_control AS m
-  ON m.tracking_code =
-     z.tracking_code
-
-WHERE r.tracking_code IS NULL
-  AND m.tracking_code IS NULL
-
-ORDER BY
-  z.order_date DESC,
-  z.tracking_code`
-      ),
-
-      env.DB.prepare(
-`SELECT
-  l.tracking_code,
-  l.line_key,
-  l.line_number,
-  l.sku AS line_sku,
-  l.description AS line_description,
-  l.quantity AS line_quantity,
-  l.brand AS line_brand,
-  l.location_code AS line_location_code,
-  l.ring_code AS line_ring_code,
-  l.unit_price AS line_unit_price,
-  l.line_total AS line_total
-
-FROM zas_order_lines AS l
-
-JOIN zas_orders AS z
-  ON z.tracking_code =
-     l.tracking_code
-
-LEFT JOIN loaded_refs AS r
-  ON r.tracking_code =
-     z.tracking_code
-
-LEFT JOIN manual_sap_control AS m
-  ON m.tracking_code =
-     z.tracking_code
-
-WHERE r.tracking_code IS NULL
-  AND m.tracking_code IS NULL
-
-ORDER BY
-  z.order_date DESC,
-  l.tracking_code,
-  CASE
-    WHEN l.line_number IS NULL
-      THEN 1
-    ELSE 0
-  END,
-  l.line_number,
-  l.line_key`
-      )
-
-    ]);
-
-
-  const orderRows =
-    ordersResult?.results ||
-    [];
-
-
-  const lineRows =
-    linesResult?.results ||
-    [];
-
-
-  const linesByTracking =
-    new Map();
-
-
-  for (
-    const line
-    of lineRows
-  ) {
-
-    const tracking =
-      normId(
-        line.tracking_code
-      );
-
-
-    if (!tracking) {
-      continue;
-    }
-
-
-    if (
-      !linesByTracking.has(
-        tracking
-      )
-    ) {
-
-      linesByTracking.set(
-        tracking,
-        []
-      );
-
-    }
-
-
-    linesByTracking
-      .get(
-        tracking
-      )
-      .push(
-        line
-      );
-
-  }
-
-
-  const apiRows = [];
-
-
-  for (
-    const order
-    of orderRows
-  ) {
-
-    const tracking =
-      normId(
-        order.tracking_code
-      );
-
-
-    const lines =
-      linesByTracking.get(
-        tracking
-      ) ||
-      [];
-
-
-    if (!lines.length) {
-
-      apiRows.push(
-        d1PendingJoinedToApi(
-          {
-            ...order,
-
-            line_key:
-              null,
-
-            line_number:
-              null,
-
-            line_sku:
-              null,
-
-            line_description:
-              null,
-
-            line_quantity:
-              null,
-
-            line_brand:
-              null,
-
-            line_location_code:
-              null,
-
-            line_ring_code:
-              null,
-
-            line_unit_price:
-              null,
-
-            line_total:
-              null
-          }
-        )
-      );
-
-
-      continue;
-
-    }
-
-
-    for (
-      const line
-      of lines
-    ) {
-
-      apiRows.push(
-        d1PendingJoinedToApi(
-          {
-            ...order,
-            ...line
-          }
-        )
-      );
-
-    }
-
-  }
-
-
-  const nameRules =
-    await getPendingNameRules(
-      env
-    );
-
-
-  const built =
-    buildNotLoaded(
-      apiRows,
-      [],
-      nameRules
-    );
-
-
-  return {
-    ok:
-      true,
-
-    source:
-      "D1",
-
-    rows:
-      built.rows,
-
-    columns:
-      NOT_LOADED_COLUMNS,
-
-    kpis:
-      built.kpis,
-
-    options:
-      buildNotLoadedOptions(
-        built.rows
-      ),
-
-    diagnostics: {
-      pendingOrderHeaders:
-        orderRows.length,
-
-      pendingProductLines:
-        lineRows.length,
-
-      renderedRows:
-        built.rows.length
-    },
-
-    updatedAt:
-      new Date()
-        .toISOString()
-  };
-
-}
-
-
 let manualSapSchemaPromise = null;
-
-
-async function ensureManualSapSchema(
-  env
-) {
-
-  if (
-    manualSapSchemaPromise
-  ) {
-
-    return manualSapSchemaPromise;
-
-  }
-
-
-  manualSapSchemaPromise =
-    env.DB.batch([
-
-      env.DB.prepare(
-`CREATE TABLE IF NOT EXISTS manual_sap_control (
-  tracking_code TEXT PRIMARY KEY,
-  status TEXT NOT NULL CHECK (
-    status IN ('EN_SAP','RESUELTO')
-  ),
-  marked_sap_at TEXT NOT NULL,
-  resolved_at TEXT,
-  updated_at TEXT NOT NULL,
-  customer_name TEXT,
-  seller_name TEXT,
-  order_date TEXT,
-  order_total REAL NOT NULL DEFAULT 0
-)`
-      ),
-
-      env.DB.prepare(
-`CREATE INDEX IF NOT EXISTS idx_manual_sap_control_status
- ON manual_sap_control(status)`
-      )
-
-    ])
-      .catch(
-        error => {
-
-          manualSapSchemaPromise =
-            null;
-
-
-          throw error;
-
-        }
-      );
-
-
-  return manualSapSchemaPromise;
-
-}
 
 
 function requireTrackingCode(
@@ -9184,309 +4135,6 @@ function requireTrackingCode(
 
 
 
-async function manualSapMark(
-  env,
-  trackingValue
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureManualSapSchema(
-    env
-  );
-
-
-  const tracking =
-    requireTrackingCode(
-      trackingValue
-    );
-
-
-  const order =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code,
-  customer_name,
-  seller_name,
-  order_date,
-  order_total
-FROM zas_orders
-WHERE tracking_code = ?1`
-      )
-      .bind(
-        tracking
-      )
-      .first();
-
-
-  if (!order) {
-
-    throw new Error(
-      "La orden no existe en zas_orders."
-    );
-
-  }
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  await env.DB
-    .prepare(
-`INSERT INTO manual_sap_control (
-  tracking_code,
-  status,
-  marked_sap_at,
-  resolved_at,
-  updated_at,
-  customer_name,
-  seller_name,
-  order_date,
-  order_total
-)
-VALUES (
-  ?1,
-  'EN_SAP',
-  ?2,
-  NULL,
-  ?2,
-  ?3,
-  ?4,
-  ?5,
-  ?6
-)
-ON CONFLICT(tracking_code)
-DO UPDATE SET
-  status = 'EN_SAP',
-  marked_sap_at = CASE
-    WHEN manual_sap_control.marked_sap_at IS NULL
-    THEN excluded.marked_sap_at
-    ELSE manual_sap_control.marked_sap_at
-  END,
-  resolved_at = NULL,
-  updated_at = excluded.updated_at,
-  customer_name = excluded.customer_name,
-  seller_name = excluded.seller_name,
-  order_date = excluded.order_date,
-  order_total = excluded.order_total`
-      )
-      .bind(
-        tracking,
-        now,
-        order.customer_name,
-        order.seller_name,
-        order.order_date,
-        numberValue(
-          order.order_total
-        )
-      )
-      .run();
-
-
-  return {
-    ok: true,
-
-    trackingCode:
-      tracking,
-
-    status:
-      "EN_SAP",
-
-    message:
-      "Orden movida a Control SAP."
-  };
-
-}
-
-
-
-async function manualSapResolve(
-  env,
-  trackingValue
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureManualSapSchema(
-    env
-  );
-
-
-  const tracking =
-    requireTrackingCode(
-      trackingValue
-    );
-
-
-  const existing =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code
-FROM manual_sap_control
-WHERE tracking_code = ?1`
-      )
-      .bind(
-        tracking
-      )
-      .first();
-
-
-  if (!existing) {
-
-    throw new Error(
-      "La orden no está en Control SAP."
-    );
-
-  }
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  await env.DB
-    .prepare(
-`UPDATE manual_sap_control
-SET
-  status = 'RESUELTO',
-  resolved_at = ?2,
-  updated_at = ?2
-WHERE tracking_code = ?1`
-      )
-      .bind(
-        tracking,
-        now
-      )
-      .run();
-
-
-  return {
-    ok: true,
-
-    trackingCode:
-      tracking,
-
-    status:
-      "RESUELTO",
-
-    virtualLoaded:
-      true,
-
-    message:
-      "Orden resuelta. Se considera cargada aunque no exista físicamente en BO/VT."
-  };
-
-}
-
-
-
-async function manualSapList(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  await ensureManualSapSchema(
-    env
-  );
-
-
-  const result =
-    await env.DB
-      .prepare(
-`SELECT
-  tracking_code,
-  status,
-  marked_sap_at,
-  resolved_at,
-  updated_at,
-  customer_name,
-  seller_name,
-  order_date,
-  order_total
-FROM manual_sap_control
-ORDER BY
-  CASE status
-    WHEN 'EN_SAP' THEN 1
-    WHEN 'RESUELTO' THEN 2
-    ELSE 9
-  END,
-  updated_at DESC`
-      )
-      .all();
-
-
-  const rows =
-    result?.results ||
-    [];
-
-
-  return {
-    ok: true,
-
-    source:
-      "D1",
-
-    active:
-      rows.filter(
-        row =>
-          row.status ===
-          "EN_SAP"
-      ),
-
-    resolved:
-      rows.filter(
-        row =>
-          row.status ===
-          "RESUELTO"
-      ),
-
-    counts: {
-      active:
-        rows.filter(
-          row =>
-            row.status ===
-            "EN_SAP"
-        )
-          .length,
-
-      resolved:
-        rows.filter(
-          row =>
-            row.status ===
-            "RESUELTO"
-        )
-          .length
-    }
-  };
-
-}
 
 
 
@@ -9552,6 +4200,28 @@ function gtDaysAgo(
 }
 
 
+function zasPageSize(env) {
+
+  const value =
+    Number(
+      env?.ZAS_PAGE_SIZE ||
+      100
+    );
+
+
+  return Math.min(
+    200,
+    Math.max(
+      25,
+      Number.isFinite(value)
+        ? Math.trunc(value)
+        : 100
+    )
+  );
+
+}
+
+
 async function getZasOrdersRecent(
   env,
   days = 7
@@ -9571,7 +4241,10 @@ async function getZasOrdersRecent(
 
   let page = 1;
   let totalPages = 1;
-  let pageSize = 25;
+  let pageSize =
+    zasPageSize(
+      env
+    );
 
   const rows = [];
 
@@ -9731,7 +4404,7 @@ async function getZasOrdersRecent(
 }
 
 
-async function d1DeleteTrackingChunks(
+async function deleteTrackingChunks(
   db,
   table,
   trackings
@@ -9794,7 +4467,7 @@ async function d1DeleteTrackingChunks(
 }
 
 
-function d1HeaderToApiRow(
+function storedHeaderToApiRow(
   row
 ) {
 
@@ -9815,7 +4488,7 @@ function d1HeaderToApiRow(
 }
 
 
-function d1LoadedRefToDetailRow(
+function loadedRefToDetailRow(
   row
 ) {
 
@@ -9889,7 +4562,7 @@ function d1LoadedRefToDetailRow(
 }
 
 
-async function rebuildReportOrdersFromD1(
+async function rebuildReportOrders(
   env,
   now
 ) {
@@ -9899,9 +4572,9 @@ async function rebuildReportOrdersFromD1(
     refResult,
     existingResult
   ] =
-    await env.DB.batch([
+    await env.PGDB.batch([
 
-      env.DB.prepare(
+      env.PGDB.prepare(
 `SELECT
   tracking_code,
   seller_name,
@@ -9910,7 +4583,7 @@ async function rebuildReportOrdersFromD1(
 FROM zas_orders`
       ),
 
-      env.DB.prepare(
+      env.PGDB.prepare(
 `SELECT
   tracking_code,
   is_pdv,
@@ -9924,7 +4597,7 @@ FROM zas_orders`
 FROM loaded_refs`
       ),
 
-      env.DB.prepare(
+      env.PGDB.prepare(
 `SELECT
   tracking_code,
   report_date,
@@ -9949,7 +4622,7 @@ FROM report_orders`
       []
     )
       .map(
-        d1HeaderToApiRow
+        storedHeaderToApiRow
       );
 
 
@@ -9959,12 +4632,12 @@ FROM report_orders`
       []
     )
       .map(
-        d1LoadedRefToDetailRow
+        loadedRefToDetailRow
       );
 
 
   const desired =
-    buildReportRowsForD1(
+    buildReportRows(
       apiRows,
       detail
     );
@@ -10118,8 +4791,8 @@ FROM report_orders`
   ) {
 
     deleteQueries =
-      await d1DeleteTrackingChunks(
-        env.DB,
+      await deleteTrackingChunks(
+        env.PGDB,
         "report_orders",
         deleted
       );
@@ -10128,8 +4801,8 @@ FROM report_orders`
 
 
   const write =
-    await d1BulkInsertJson(
-      env.DB,
+    await bulkInsertRowsCompat(
+      env.PGDB,
       "report_orders",
       [
         "tracking_code",
@@ -10202,7 +4875,7 @@ async function detectReportMaterializationDrift(
 ) {
 
   const result =
-    await env.DB
+    await env.PGDB
       .prepare(
 `WITH drift AS (
 
@@ -10340,7 +5013,7 @@ FROM drift`
 
 
 // ============================================================
-// IMPORTADOR EXCEL -> D1 COMO FUENTE API MANUAL
+// IMPORTADOR EXCEL -> POSTGRESQL COMO FUENTE API MANUAL
 // ============================================================
 
 let manualApiImportSchemaPromise =
@@ -10351,10 +5024,10 @@ async function ensureManualApiImportSchema(
   env
 ) {
 
-  if (!env.DB) {
+  if (!env.PGDB) {
 
     throw new Error(
-      "Falta el binding D1 DB."
+      "Falta el adaptador PostgreSQL interno."
     );
 
   }
@@ -10372,9 +5045,9 @@ async function ensureManualApiImportSchema(
   manualApiImportSchemaPromise =
     (async () => {
 
-      await env.DB.batch([
+      await env.PGDB.batch([
 
-        env.DB.prepare(
+        env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS manual_zas_api_registry (
   tracking_code TEXT PRIMARY KEY,
   import_id TEXT NOT NULL,
@@ -10386,7 +5059,7 @@ async function ensureManualApiImportSchema(
 )`
         ),
 
-        env.DB.prepare(
+        env.PGDB.prepare(
 `CREATE TABLE IF NOT EXISTS manual_zas_api_imports (
   import_id TEXT PRIMARY KEY,
   file_name TEXT,
@@ -10402,7 +5075,7 @@ async function ensureManualApiImportSchema(
 )`
         ),
 
-        env.DB.prepare(
+        env.PGDB.prepare(
 `CREATE INDEX IF NOT EXISTS idx_manual_zas_api_registry_import
 ON manual_zas_api_registry(import_id)`
         )
@@ -10437,7 +5110,7 @@ async function manualApiProtectedTrackings(
 
 
   const result =
-    await env.DB
+    await env.PGDB
       .prepare(
 `SELECT tracking_code
 FROM manual_zas_api_registry`
@@ -10518,7 +5191,7 @@ async function markManualTrackingsSeenInApi(
         .join(",");
 
 
-    await env.DB
+    await env.PGDB
       .prepare(
 `UPDATE manual_zas_api_registry
 SET api_seen_at = ?1
@@ -10878,7 +5551,7 @@ async function selectTrackingRowsInChunks(
 
 
     const result =
-      await env.DB
+      await env.PGDB
         .prepare(
           sqlPrefix +
           ` (${placeholders})`
@@ -10921,7 +5594,7 @@ async function manualApiImportRows(
 
 
   const grouped =
-    groupZasForD1(
+    groupZasRows(
       validated.rows
     );
 
@@ -11083,8 +5756,8 @@ async function manualApiImportRows(
 
     // Una reimportación manual reemplaza exactamente las líneas manuales
     // anteriores de esos tracking para no dejar SKU obsoletos.
-    await d1DeleteTrackingChunks(
-      env.DB,
+    await deleteTrackingChunks(
+      env.PGDB,
       "zas_order_lines",
       [
         ...importTrackingSet
@@ -11092,8 +5765,8 @@ async function manualApiImportRows(
     );
 
 
-    await d1BulkInsertJson(
-      env.DB,
+    await bulkInsertRowsCompat(
+      env.PGDB,
       "zas_orders",
       [
         "tracking_code",
@@ -11137,8 +5810,8 @@ async function manualApiImportRows(
     );
 
 
-    await d1BulkInsertJson(
-      env.DB,
+    await bulkInsertRowsCompat(
+      env.PGDB,
       "zas_order_lines",
       [
         "tracking_code",
@@ -11196,7 +5869,7 @@ async function manualApiImportRows(
     // VERIFICACIÓN POST-ESCRITURA
     //
     // Si el archivo dice que un tracking tiene N líneas,
-    // D1 debe terminar exactamente con N líneas.
+    // PostgreSQL debe terminar exactamente con N líneas.
     // --------------------------------------------------------
 
     const storedLines =
@@ -11303,7 +5976,7 @@ async function manualApiImportRows(
     ) {
 
       throw new Error(
-        "La verificación de líneas D1 falló. " +
+        "La verificación de líneas PostgreSQL falló. " +
         lineCountErrors
           .slice(
             0,
@@ -11317,8 +5990,8 @@ async function manualApiImportRows(
     }
 
 
-    await d1BulkInsertJson(
-      env.DB,
+    await bulkInsertRowsCompat(
+      env.PGDB,
       "manual_zas_api_registry",
       [
         "tracking_code",
@@ -11376,13 +6049,13 @@ async function manualApiImportRows(
 
 
   const reportStats =
-    await rebuildReportOrdersFromD1(
+    await rebuildReportOrders(
       env,
       now
     );
 
 
-  await env.DB
+  await env.PGDB
     .prepare(
 `INSERT INTO manual_zas_api_imports (
   import_id,
@@ -11465,97 +6138,13 @@ VALUES (
 }
 
 
-async function manualApiImportList(
-  env
-) {
-
-  await ensureManualApiImportSchema(
-    env
-  );
-
-
-  const [
-    imports,
-    registry
-  ] =
-    await env.DB.batch([
-
-      env.DB.prepare(
-`SELECT
-  import_id,
-  file_name,
-  imported_at,
-  source_rows,
-  unique_orders,
-  imported_orders,
-  updated_manual_orders,
-  skipped_existing_api,
-  imported_lines,
-  total_amount,
-  report_rows_changed
-FROM manual_zas_api_imports
-ORDER BY imported_at DESC
-LIMIT 20`
-      ),
-
-      env.DB.prepare(
-`SELECT
-  COUNT(*) AS orders,
-  COALESCE(SUM(row_count), 0) AS lines,
-  COALESCE(SUM(order_total), 0) AS total,
-  SUM(CASE WHEN api_seen_at IS NOT NULL THEN 1 ELSE 0 END) AS api_seen
-FROM manual_zas_api_registry`
-      )
-
-    ]);
-
-
-  const current =
-    registry?.results?.[0] ||
-    {};
-
-
-  return {
-    ok:
-      true,
-    current: {
-      protectedOrders:
-        Number(
-          current.orders ||
-          0
-        ),
-      productLines:
-        Number(
-          current.lines ||
-          0
-        ),
-      totalAmount:
-        round2(
-          numberValue(
-            current.total
-          )
-        ),
-      nowAlsoSeenInApi:
-        Number(
-          current.api_seen ||
-          0
-        )
-    },
-    imports:
-      imports?.results ||
-      []
-  };
-
-}
-
-
 async function reconcileRecentLoadedRefsAgainstLiveApi(
   env,
   cutoff
 ) {
 
   const candidateResult =
-    await env.DB
+    await env.PGDB
       .prepare(
 `SELECT
   z.tracking_code,
@@ -11698,16 +6287,16 @@ ORDER BY
   ) {
 
     deleteQueries +=
-      await d1DeleteTrackingChunks(
-        env.DB,
+      await deleteTrackingChunks(
+        env.PGDB,
         "zas_order_lines",
         staleTrackings
       );
 
 
     deleteQueries +=
-      await d1DeleteTrackingChunks(
-        env.DB,
+      await deleteTrackingChunks(
+        env.PGDB,
         "zas_orders",
         staleTrackings
       );
@@ -11742,252 +6331,18 @@ ORDER BY
 
 
 
-let reportFreshRepairPromise =
-  null;
 
 
 
 
-async function countTrackedApiAttributionMismatches(
-  env
-) {
-
-  const row =
-    await env.DB
-      .prepare(
-`SELECT
-  COUNT(*) AS n
-
-FROM report_orders AS r
-
-JOIN zas_orders AS z
-  ON z.tracking_code =
-     r.tracking_code
-
-WHERE r.source <> 'ZASCONNECT'
-
-   OR r.report_date <>
-      z.order_date
-
-   OR ABS(
-        COALESCE(
-          r.amount,
-          0
-        ) -
-        COALESCE(
-          z.order_total,
-          0
-        )
-      ) > 0.01`
-      )
-      .first();
-
-
-  return Number(
-    row?.n ||
-    0
-  );
-
-}
-
-
-
-async function countPdvDateAttributionMismatches(
-  env
-) {
-
-  // Compatibilidad con el diagnóstico anterior.
-  // Ahora el criterio correcto es propiedad del tracking ZasConnect.
-  return await countTrackedApiAttributionMismatches(
-    env
-  );
-
-}
-
-
-
-async function countCrossSourceOverlaps(
-  env
-) {
-
-  const row =
-    await env.DB
-      .prepare(
-`SELECT
-  COUNT(*) AS n
-
-FROM zas_orders AS z
-
-JOIN loaded_refs AS lr
-  ON lr.tracking_code =
-     z.tracking_code
-
-WHERE lr.is_pdv = 1`
-      )
-      .first();
-
-
-  return Number(
-    row?.n ||
-    0
-  );
-
-}
-
-
-
-async function countCrossSourceReportCollisions(
-  env
-) {
-
-  // "Colisión" ahora significa conflicto real de atribución,
-  // no simplemente que el tracking exista en ambas fuentes.
-  return await countTrackedApiAttributionMismatches(
-    env
-  );
-
-}
-
-
-
-async function ensureReportOrdersFresh(
-  env
-) {
-
-  if (
-    reportFreshRepairPromise
-  ) {
-
-    return reportFreshRepairPromise;
-
-  }
-
-
-  reportFreshRepairPromise =
-    (
-      async () => {
-
-        const before =
-          await detectReportMaterializationDrift(
-            env
-          );
-
-
-        if (
-          before <=
-          0
-        ) {
-
-          return {
-            repaired:
-              false,
-            before:
-              0,
-            after:
-              0
-          };
-
-        }
-
-
-        const now =
-          new Date()
-            .toISOString();
-
-
-        const stats =
-          await rebuildReportOrdersFromD1(
-            env,
-            now
-          );
-
-
-        const after =
-          await detectReportMaterializationDrift(
-            env
-          );
-
-
-        await env.DB
-          .prepare(
-`INSERT INTO sync_state (
-  source,
-  last_started_at,
-  last_success_at,
-  records_seen,
-  records_changed,
-  metadata_json,
-  last_error
-)
-VALUES (
-  'REPORT_AUTO_REPAIR',
-  ?1,
-  ?1,
-  ?2,
-  ?3,
-  ?4,
-  NULL
-)
-ON CONFLICT(source)
-DO UPDATE SET
-  last_started_at = excluded.last_started_at,
-  last_success_at = excluded.last_success_at,
-  records_seen = excluded.records_seen,
-  records_changed = excluded.records_changed,
-  metadata_json = excluded.metadata_json,
-  last_error = NULL`
-          )
-          .bind(
-            now,
-            stats.seen,
-            stats.changed +
-            stats.deleted,
-            JSON.stringify({
-              before,
-              after,
-              changed:
-                stats.changed,
-              deleted:
-                stats.deleted
-            })
-          )
-          .run();
-
-
-        return {
-          repaired:
-            true,
-          before,
-          after,
-          stats
-        };
-
-      }
-    )()
-      .finally(
-        () => {
-
-          reportFreshRepairPromise =
-            null;
-
-        }
-      );
-
-
-  return reportFreshRepairPromise;
-
-}
 
 
 
 
 // ============================================================
-// POSTGRESQL - CAPA DE COMPATIBILIDAD CON EL MOTOR D1
-// Fase 5.26.3
-//
-// Permite reutilizar la lógica de sincronización ya validada sin
-// reescribir de golpe cientos de consultas. Solo se usa en la ruta
-// manual /api/postgres-sync-test durante esta fase.
+// POSTGRESQL - ADAPTADOR SQL INTERNO
+// Mantiene el contrato prepare/bind/batch del motor de sincronización,
+// pero todas las operaciones se ejecutan sobre PostgreSQL/Hyperdrive.
 // ============================================================
 
 const PG_COMPAT_PRIMARY_KEYS = {
@@ -12166,7 +6521,7 @@ function pgCompatTranslateSql(
   ) {
 
     throw new Error(
-      "INSERT OR REPLACE debe pasar por bulkInsertJson en PostgreSQL."
+      "INSERT OR REPLACE debe pasar por bulkInsertRowsCompat en PostgreSQL."
     );
 
   }
@@ -12250,14 +6605,14 @@ function pgCompatResult(
 
 
 
-function makePgD1Compat(
+function makePostgresCompatDb(
   client
 ) {
 
   const compat = {
 
     __engine:
-      "POSTGRESQL_D1_COMPAT",
+      "POSTGRESQL_COMPAT",
 
 
     prepare(
@@ -12383,7 +6738,7 @@ function makePgD1Compat(
         ) {
 
           throw new Error(
-            "Statement incompatible en batch PostgreSQL."
+            "Statement incompatible en adaptador PostgreSQL."
           );
 
         }
@@ -12707,9 +7062,223 @@ ORDER BY source`
 
 
 
+
+async function postgresUsageSnapshot(
+  env
+) {
+
+  return withPg(
+    env,
+    async client => {
+
+      const result =
+        await client.query(
+`SELECT
+  pg_database_size(current_database())::bigint AS database_bytes,
+
+  (
+    SELECT
+      COALESCE(
+        SUM(
+          pg_total_relation_size(c.oid)
+        ),
+        0
+      )::bigint
+    FROM pg_class AS c
+    JOIN pg_namespace AS n
+      ON n.oid = c.relnamespace
+    WHERE n.nspname = 'super_dupaza'
+      AND c.relkind IN ('r','m')
+  ) AS schema_bytes,
+
+  current_setting('max_connections')::int AS max_connections,
+
+  COALESCE(
+    (
+      SELECT numbackends
+      FROM pg_stat_database
+      WHERE datname = current_database()
+    ),
+    0
+  )::int AS active_connections,
+
+  (
+    SELECT
+      COALESCE(
+        json_agg(
+          row_to_json(t)
+          ORDER BY t.bytes DESC
+        ),
+        '[]'::json
+      )
+    FROM (
+      SELECT
+        c.relname AS table_name,
+        pg_total_relation_size(c.oid)::bigint AS bytes,
+        COALESCE(s.n_live_tup, 0)::bigint AS estimated_rows
+      FROM pg_class AS c
+      JOIN pg_namespace AS n
+        ON n.oid = c.relnamespace
+      LEFT JOIN pg_stat_user_tables AS s
+        ON s.relid = c.oid
+      WHERE n.nspname = 'super_dupaza'
+        AND c.relkind = 'r'
+      ORDER BY bytes DESC
+    ) AS t
+  ) AS tables`
+        );
+
+
+      const row =
+        result.rows?.[0] ||
+        {};
+
+
+      const databaseBytes =
+        Number(
+          row.database_bytes ||
+          0
+        );
+
+
+      const schemaBytes =
+        Number(
+          row.schema_bytes ||
+          0
+        );
+
+
+      const quotaBytes =
+        500 *
+        1024 *
+        1024;
+
+
+      const tables =
+        Array.isArray(
+          row.tables
+        )
+          ? row.tables.map(
+              item => ({
+                table:
+                  item.table_name,
+                bytes:
+                  Number(
+                    item.bytes ||
+                    0
+                  ),
+                mb:
+                  round2(
+                    Number(
+                      item.bytes ||
+                      0
+                    ) /
+                    1024 /
+                    1024
+                  ),
+                estimatedRows:
+                  Number(
+                    item.estimated_rows ||
+                    0
+                  )
+              })
+            )
+          : [];
+
+
+      return {
+        ok: true,
+        engine: "POSTGRESQL",
+        measuredAt:
+          new Date()
+            .toISOString(),
+
+        database: {
+          bytes:
+            databaseBytes,
+          mb:
+            round2(
+              databaseBytes /
+              1024 /
+              1024
+            ),
+          freePlanDatabaseQuotaMB:
+            500,
+          quotaPercentApprox:
+            round2(
+              quotaBytes > 0
+                ? databaseBytes /
+                  quotaBytes *
+                  100
+                : 0
+            )
+        },
+
+        superDupazaSchema: {
+          bytes:
+            schemaBytes,
+          mb:
+            round2(
+              schemaBytes /
+              1024 /
+              1024
+            ),
+          tables
+        },
+
+        connections: {
+          active:
+            Number(
+              row.active_connections ||
+              0
+            ),
+          postgresMax:
+            Number(
+              row.max_connections ||
+              0
+            ),
+          hyperdriveFreeOriginConnectionsReference:
+            20
+        },
+
+        cloudflareFreeReference: {
+          workersRequestsPerDay:
+            100000,
+          hyperdriveStatementsPerDay:
+            100000,
+          queueOperationsPerDay:
+            10000
+        },
+
+        syncStrategy: {
+          fastCron:
+            "*/5 * * * *",
+          fastDays:
+            7,
+          fastMode:
+            "FAST_INCREMENTAL",
+          fullCron:
+            "17 12 * * *",
+          fullDays:
+            30,
+          fullMode:
+            "FULL_RECONCILE"
+        },
+
+        note:
+          "Las cuotas incluidas son referencias para monitoreo; valida el panel de uso de Cloudflare y Supabase para consumo facturable real."
+      };
+
+    }
+  );
+
+}
+
+
 async function syncIncrementalToPostgres(
   env,
-  days = 7
+  days = 7,
+  { includeSnapshot = false } = {}
 ) {
 
   if (
@@ -12751,15 +7320,15 @@ async function syncIncrementalToPostgres(
         const pgEnv = {
           ...env,
 
-          DB:
-            makePgD1Compat(
+          PGDB:
+            makePostgresCompatDb(
               client
             )
         };
 
 
         const result =
-          await syncIncrementalToD1(
+          await syncIncrementalCore(
             pgEnv,
             requestedDays
           );
@@ -12771,9 +7340,11 @@ async function syncIncrementalToPostgres(
 
 
         const snapshot =
-          await postgresSyncSnapshot(
-            env
-          );
+          includeSnapshot
+            ? await postgresSyncSnapshot(
+                env
+              )
+            : null;
 
 
         return {
@@ -12789,11 +7360,13 @@ async function syncIncrementalToPostgres(
           transactionCommitted:
             true,
 
-          queueSwitched:
-            false,
+          syncMode:
+            requestedDays >= 30
+              ? "FULL_RECONCILE"
+              : "FAST_INCREMENTAL",
 
-          d1Modified:
-            false,
+          postgresOnly:
+            true,
 
           sync:
             result,
@@ -12824,15 +7397,15 @@ async function syncIncrementalToPostgres(
 
 
 
-async function syncIncrementalToD1(
+async function syncIncrementalCore(
   env,
   days = 7
 ) {
 
-  if (!env.DB) {
+  if (!env.PGDB) {
 
     throw new Error(
-      "Falta el binding D1 DB."
+      "Falta el adaptador PostgreSQL interno."
     );
 
   }
@@ -12850,7 +7423,9 @@ async function syncIncrementalToD1(
 
   const stats = {
     mode:
-      "INCREMENTAL",
+      days >= 30
+        ? "FULL_RECONCILE"
+        : "FAST_INCREMENTAL",
 
     days,
 
@@ -12886,7 +7461,9 @@ async function syncIncrementalToD1(
       staleApiDeleted:
         0,
       kept:
-        0
+        0,
+      skipped:
+        false
     },
 
     reports: {
@@ -12902,7 +7479,7 @@ async function syncIncrementalToD1(
         false
     },
 
-    d1QueriesEstimated:
+    dbQueriesEstimated:
       0
   };
 
@@ -12929,7 +7506,7 @@ async function syncIncrementalToD1(
 
 
     const grouped =
-      groupZasForD1(
+      groupZasRows(
         recent.rows
       );
 
@@ -12946,9 +7523,9 @@ async function syncIncrementalToD1(
       existingOrdersResult,
       existingLinesResult
     ] =
-      await env.DB.batch([
+      await env.PGDB.batch([
 
-        env.DB
+        env.PGDB
           .prepare(
 `SELECT
   tracking_code,
@@ -12960,7 +7537,7 @@ WHERE order_date >= ?1`
             recent.cutoff
           ),
 
-        env.DB
+        env.PGDB
           .prepare(
 `SELECT
   l.tracking_code,
@@ -12978,7 +7555,7 @@ WHERE o.order_date >= ?1`
       ]);
 
 
-    stats.d1QueriesEstimated +=
+    stats.dbQueriesEstimated +=
       2;
 
 
@@ -13046,7 +7623,7 @@ WHERE o.order_date >= ?1`
 
 
     // ZasConnect actual es la fuente de verdad dentro de la ventana reciente.
-    // Si una orden que estaba guardada en D1 ya no viene en el API actual,
+    // Si una orden que estaba guardada ya no viene en el API actual,
     // debe eliminarse de zas_orders/zas_order_lines. De lo contrario una venta
     // cancelada o retirada del API puede seguir apropiándose de un tracking
     // BO/VT y terminar sumándose al asesor equivocado.
@@ -13204,17 +7781,17 @@ WHERE o.order_date >= ?1`
     ) {
 
       // Primero líneas y luego cabeceras.
-      stats.d1QueriesEstimated +=
-        await d1DeleteTrackingChunks(
-          env.DB,
+      stats.dbQueriesEstimated +=
+        await deleteTrackingChunks(
+          env.PGDB,
           "zas_order_lines",
           deletedOrders
         );
 
 
-      stats.d1QueriesEstimated +=
-        await d1DeleteTrackingChunks(
-          env.DB,
+      stats.dbQueriesEstimated +=
+        await deleteTrackingChunks(
+          env.PGDB,
           "zas_orders",
           deletedOrders
         );
@@ -13223,8 +7800,8 @@ WHERE o.order_date >= ?1`
 
 
     const orderWrite =
-      await d1BulkInsertJson(
-        env.DB,
+      await bulkInsertRowsCompat(
+        env.PGDB,
         "zas_orders",
         [
           "tracking_code",
@@ -13268,7 +7845,7 @@ WHERE o.order_date >= ?1`
       );
 
 
-    stats.d1QueriesEstimated +=
+    stats.dbQueriesEstimated +=
       orderWrite.queries;
 
 
@@ -13294,9 +7871,9 @@ WHERE o.order_date >= ?1`
         ];
 
 
-      stats.d1QueriesEstimated +=
-        await d1DeleteTrackingChunks(
-          env.DB,
+      stats.dbQueriesEstimated +=
+        await deleteTrackingChunks(
+          env.PGDB,
           "zas_order_lines",
           trackingList
         );
@@ -13312,8 +7889,8 @@ WHERE o.order_date >= ?1`
 
 
       const lineWrite =
-        await d1BulkInsertJson(
-          env.DB,
+        await bulkInsertRowsCompat(
+          env.PGDB,
           "zas_order_lines",
           [
             "tracking_code",
@@ -13344,7 +7921,7 @@ WHERE o.order_date >= ?1`
         );
 
 
-      stats.d1QueriesEstimated +=
+      stats.dbQueriesEstimated +=
         lineWrite.queries;
 
     }
@@ -13365,7 +7942,7 @@ WHERE o.order_date >= ?1`
           "status"
         ),
 
-        env.DB
+        env.PGDB
           .prepare(
 `SELECT
   metadata_json
@@ -13377,7 +7954,7 @@ WHERE source = 'BO_VT'`
       ]);
 
 
-    stats.d1QueriesEstimated +=
+    stats.dbQueriesEstimated +=
       1;
 
 
@@ -13489,13 +8066,13 @@ WHERE source = 'BO_VT'`
 
 
       const desiredRefs =
-        buildLoadedRefsForD1(
+        buildLoadedRefs(
           detail
         );
 
 
       const existingRefsResult =
-        await env.DB
+        await env.PGDB
           .prepare(
 `SELECT
   tracking_code,
@@ -13505,7 +8082,7 @@ FROM loaded_refs`
           .all();
 
 
-      stats.d1QueriesEstimated +=
+      stats.dbQueriesEstimated +=
         1;
 
 
@@ -13561,9 +8138,9 @@ FROM loaded_refs`
         deletedRefs.length
       ) {
 
-        stats.d1QueriesEstimated +=
-          await d1DeleteTrackingChunks(
-            env.DB,
+        stats.dbQueriesEstimated +=
+          await deleteTrackingChunks(
+            env.PGDB,
             "loaded_refs",
             deletedRefs
           );
@@ -13572,8 +8149,8 @@ FROM loaded_refs`
 
 
       const refWrite =
-        await d1BulkInsertJson(
-          env.DB,
+        await bulkInsertRowsCompat(
+          env.PGDB,
           "loaded_refs",
           [
             "tracking_code",
@@ -13605,7 +8182,7 @@ FROM loaded_refs`
         );
 
 
-      stats.d1QueriesEstimated +=
+      stats.dbQueriesEstimated +=
         refWrite.queries;
 
 
@@ -13687,218 +8264,147 @@ FROM loaded_refs`
     // usar el mismo tracking en una fecha BO/VT reciente.
     //
     // Verificamos esos trackings contra el API COMPLETO actual antes de
-    // decidir si la fila ZasConnect en D1 sigue siendo válida.
+    // decidir si la fila ZasConnect almacenada sigue siendo válida.
     // --------------------------------------------------------
 
-    const crossSource =
-      await reconcileRecentLoadedRefsAgainstLiveApi(
-        env,
-        recent.cutoff
-      );
+    const shouldFullReconcile =
+      days >= 30;
 
 
-    stats.crossSource = {
-      checked:
-        crossSource.checked ||
-        0,
+    if (shouldFullReconcile) {
 
-      fullApiFetched:
-        Boolean(
-          crossSource.fullApiFetched
-        ),
-
-      staleApiDeleted:
-        crossSource.deleted?.length ||
-        0,
-
-      kept:
-        crossSource.kept?.length ||
-        0
-    };
+      const crossSource =
+        await reconcileRecentLoadedRefsAgainstLiveApi(
+          env,
+          recent.cutoff
+        );
 
 
-    stats.d1QueriesEstimated +=
-      1 +
-      (
-        crossSource.deleteQueries ||
-        0
-      );
+      stats.crossSource = {
+        checked:
+          crossSource.checked ||
+          0,
+
+        fullApiFetched:
+          Boolean(
+            crossSource.fullApiFetched
+          ),
+
+        staleApiDeleted:
+          crossSource.deleted?.length ||
+          0,
+
+        kept:
+          crossSource.kept?.length ||
+          0,
+
+        skipped:
+          false
+      };
+
+
+      stats.dbQueriesEstimated +=
+        1 +
+        (
+          crossSource.deleteQueries ||
+          0
+        );
+
+    } else {
+
+      stats.crossSource = {
+        checked: 0,
+        fullApiFetched: false,
+        staleApiDeleted: 0,
+        kept: 0,
+        skipped: true,
+        reason: "FAST_INCREMENTAL_NO_FULL_API"
+      };
+
+    }
 
 
     // --------------------------------------------------------
     // REPORT_ORDERS: solo reconciliar si cambió cabecera o BO/VT.
     // --------------------------------------------------------
 
-    const advisorSeparationState =
-      await env.DB
-        .prepare(
+    // --------------------------------------------------------
+    // FLAGS / DRIFT: son chequeos históricos y de reparación.
+    // En FAST_INCREMENTAL solo reconstruimos si realmente cambió una fuente.
+    // FULL_RECONCILE diario valida además migraciones y drift.
+    let needsAdvisorSeparationRebuild = false;
+    let needsAdvisorIdentityV2Rebuild = false;
+    let needsReportMaterializationV3Rebuild = false;
+    let needsPdvAttributionV1Rebuild = false;
+    let needsDriftPdvFixV1Rebuild = false;
+    let needsReportDateSourceV1Rebuild = false;
+    let needsTrackedApiOwnerV1Rebuild = false;
+    let needsTrackedSellerSegmentV1Rebuild = false;
+    let needsBoVtPdvBothSourcesV1Rebuild = false;
+    let reportDrift = 0;
+
+
+    if (shouldFullReconcile) {
+
+      const reportFeatureStateResult =
+        await env.PGDB
+          .prepare(
 `SELECT source
 FROM sync_state
-WHERE source = 'REPORT_ADVISOR_SEPARATION_V1'`
-        )
-        .first();
+WHERE source IN (
+  'REPORT_ADVISOR_SEPARATION_V1',
+  'REPORT_ADVISOR_IDENTITY_V2',
+  'REPORT_MATERIALIZATION_V3',
+  'REPORT_PDV_ATTRIBUTION_V1',
+  'REPORT_DRIFT_PDV_FIX_V1',
+  'REPORT_DATE_SOURCE_V1',
+  'REPORT_TRACKED_API_OWNER_V1',
+  'REPORT_TRACKED_SELLER_SEGMENT_V1',
+  'REPORT_BO_VT_PDV_BOTH_SOURCES_V1'
+)`
+          )
+          .all();
 
 
-    stats.d1QueriesEstimated +=
-      1;
+      stats.dbQueriesEstimated += 1;
 
 
-    const identityV2State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_ADVISOR_IDENTITY_V2'`
-        )
-        .first();
+      const reportFeatureStates =
+        new Set(
+          (reportFeatureStateResult?.results || [])
+            .map(row => row.source)
+        );
 
 
-    stats.d1QueriesEstimated +=
-      1;
+      needsAdvisorSeparationRebuild =
+        !reportFeatureStates.has("REPORT_ADVISOR_SEPARATION_V1");
+      needsAdvisorIdentityV2Rebuild =
+        !reportFeatureStates.has("REPORT_ADVISOR_IDENTITY_V2");
+      needsReportMaterializationV3Rebuild =
+        !reportFeatureStates.has("REPORT_MATERIALIZATION_V3");
+      needsPdvAttributionV1Rebuild =
+        !reportFeatureStates.has("REPORT_PDV_ATTRIBUTION_V1");
+      needsDriftPdvFixV1Rebuild =
+        !reportFeatureStates.has("REPORT_DRIFT_PDV_FIX_V1");
+      needsReportDateSourceV1Rebuild =
+        !reportFeatureStates.has("REPORT_DATE_SOURCE_V1");
+      needsTrackedApiOwnerV1Rebuild =
+        !reportFeatureStates.has("REPORT_TRACKED_API_OWNER_V1");
+      needsTrackedSellerSegmentV1Rebuild =
+        !reportFeatureStates.has("REPORT_TRACKED_SELLER_SEGMENT_V1");
+      needsBoVtPdvBothSourcesV1Rebuild =
+        !reportFeatureStates.has("REPORT_BO_VT_PDV_BOTH_SOURCES_V1");
 
 
-    const needsAdvisorSeparationRebuild =
-      !advisorSeparationState;
+      reportDrift =
+        await detectReportMaterializationDrift(
+          env
+        );
 
 
-    const reportMaterializationV3State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_MATERIALIZATION_V3'`
-        )
-        .first();
+      stats.dbQueriesEstimated += 1;
 
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsAdvisorIdentityV2Rebuild =
-      !identityV2State;
-
-
-    const pdvAttributionV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_PDV_ATTRIBUTION_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsReportMaterializationV3Rebuild =
-      !reportMaterializationV3State;
-
-
-    const driftPdvFixV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_DRIFT_PDV_FIX_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsPdvAttributionV1Rebuild =
-      !pdvAttributionV1State;
-
-
-    const reportDateSourceV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_DATE_SOURCE_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsDriftPdvFixV1Rebuild =
-      !driftPdvFixV1State;
-
-
-    const trackedApiOwnerV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_TRACKED_API_OWNER_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsReportDateSourceV1Rebuild =
-      !reportDateSourceV1State;
-
-
-    const trackedSellerSegmentV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_TRACKED_SELLER_SEGMENT_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsTrackedApiOwnerV1Rebuild =
-      !trackedApiOwnerV1State;
-
-
-    const needsTrackedSellerSegmentV1Rebuild =
-      !trackedSellerSegmentV1State;
-
-
-    const boVtPdvBothSourcesV1State =
-      await env.DB
-        .prepare(
-`SELECT source
-FROM sync_state
-WHERE source = 'REPORT_BO_VT_PDV_BOTH_SOURCES_V1'`
-        )
-        .first();
-
-
-    stats.d1QueriesEstimated +=
-      1;
-
-
-    const needsBoVtPdvBothSourcesV1Rebuild =
-      !boVtPdvBothSourcesV1State;
-
-
-    const reportDrift =
-      await detectReportMaterializationDrift(
-        env
-      );
-
-
-    stats.d1QueriesEstimated +=
-      1;
+    }
 
 
     stats.reports.driftDetected =
@@ -13951,13 +8457,13 @@ WHERE source = 'REPORT_BO_VT_PDV_BOTH_SOURCES_V1'`
 
 
       reportStats =
-        await rebuildReportOrdersFromD1(
+        await rebuildReportOrders(
           env,
           now
         );
 
 
-      stats.d1QueriesEstimated +=
+      stats.dbQueriesEstimated +=
         3 +
         reportStats.writeQueries +
         reportStats.deleteQueries;
@@ -13967,7 +8473,7 @@ WHERE source = 'REPORT_BO_VT_PDV_BOTH_SOURCES_V1'`
         needsAdvisorSeparationRebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14000,7 +8506,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14010,7 +8516,7 @@ VALUES (
         needsAdvisorIdentityV2Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14043,7 +8549,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14053,7 +8559,7 @@ VALUES (
         needsReportMaterializationV3Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14086,7 +8592,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14096,7 +8602,7 @@ VALUES (
         needsPdvAttributionV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14131,7 +8637,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14141,7 +8647,7 @@ VALUES (
         needsDriftPdvFixV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14172,7 +8678,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14182,7 +8688,7 @@ VALUES (
         needsReportDateSourceV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14213,7 +8719,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14223,7 +8729,7 @@ VALUES (
         needsTrackedApiOwnerV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14262,7 +8768,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14272,7 +8778,7 @@ VALUES (
         needsTrackedSellerSegmentV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14305,7 +8811,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14315,7 +8821,7 @@ VALUES (
         needsBoVtPdvBothSourcesV1Rebuild
       ) {
 
-        await env.DB
+        await env.PGDB
           .prepare(
 `INSERT OR IGNORE INTO sync_state (
   source,
@@ -14356,7 +8862,7 @@ VALUES (
           .run();
 
 
-        stats.d1QueriesEstimated +=
+        stats.dbQueriesEstimated +=
           1;
 
       }
@@ -14364,7 +8870,7 @@ VALUES (
     } else {
 
       const state =
-        await env.DB
+        await env.PGDB
           .prepare(
 `SELECT
   records_seen,
@@ -14376,7 +8882,7 @@ WHERE source = 'REPORTS'`
           .first();
 
 
-      stats.d1QueriesEstimated +=
+      stats.dbQueriesEstimated +=
         1;
 
 
@@ -14457,9 +8963,9 @@ WHERE source = 'REPORTS'`
       });
 
 
-    await env.DB.batch([
+    await env.PGDB.batch([
 
-      env.DB
+      env.PGDB
         .prepare(
 `UPDATE sync_state
  SET last_started_at = ?1,
@@ -14483,7 +8989,7 @@ WHERE source = 'REPORTS'`
           zasMeta
         ),
 
-      env.DB
+      env.PGDB
         .prepare(
 `UPDATE sync_state
  SET last_started_at = ?1,
@@ -14500,7 +9006,7 @@ WHERE source = 'REPORTS'`
           boMeta
         ),
 
-      env.DB
+      env.PGDB
         .prepare(
 `UPDATE sync_state
  SET last_started_at = ?1,
@@ -14526,7 +9032,7 @@ WHERE source = 'REPORTS'`
     ]);
 
 
-    stats.d1QueriesEstimated +=
+    stats.dbQueriesEstimated +=
       3;
 
 
@@ -14556,7 +9062,7 @@ WHERE source = 'REPORTS'`
 
     try {
 
-      await env.DB
+      await env.PGDB
         .prepare(
 `UPDATE sync_state
  SET last_error = ?1,
@@ -14583,754 +9089,9 @@ WHERE source = 'REPORTS'`
 
 
 // ============================================================
-// EXPORTADOR D1 DEFINITIVO -> JSON
-// Basado en el inventario real de producción del 2026-10-27.
+// POSTGRESQL - LECTURAS Y ESCRITURAS PRIMARIAS
 // ============================================================
 
-const D1_FINAL_EXPORT_TABLES = [{"name": "loaded_refs", "expected": 7031}, {"name": "manual_sap_control", "expected": 41}, {"name": "manual_zas_api_imports", "expected": 2}, {"name": "manual_zas_api_registry", "expected": 59}, {"name": "pending_name_normalization", "expected": 25}, {"name": "report_group_labels", "expected": 3}, {"name": "report_orders", "expected": 2435}, {"name": "report_type_config", "expected": 1}, {"name": "report_type_value_rules", "expected": 3}, {"name": "seller_monthly_targets", "expected": 11}, {"name": "seller_report_match", "expected": 55}, {"name": "seller_report_rule_rows", "expected": 25}, {"name": "sync_state", "expected": 18}, {"name": "zas_order_lines", "expected": 1200}, {"name": "zas_orders", "expected": 430}];
-
-
-async function d1FinalExportPageData(
-  env,
-  params
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 DB."
-    );
-
-  }
-
-
-  const table =
-    String(
-      params.get(
-        "table"
-      ) ||
-      ""
-    )
-      .trim();
-
-
-  const allowed =
-    D1_FINAL_EXPORT_TABLES
-      .find(
-        item =>
-          item.name ===
-          table
-      );
-
-
-  if (!allowed) {
-
-    throw new Error(
-      "Tabla no permitida."
-    );
-
-  }
-
-
-  const cursor =
-    Math.max(
-      0,
-      Number(
-        params.get(
-          "cursor"
-        ) ||
-        0
-      ) ||
-      0
-    );
-
-
-  const limit =
-    Math.min(
-      1000,
-      Math.max(
-        1,
-        Number(
-          params.get(
-            "limit"
-          ) ||
-          1000
-        ) ||
-        1000
-      )
-    );
-
-
-  const safeTable =
-    table.replace(
-      /"/g,
-      '""'
-    );
-
-
-  // Keyset pagination por rowid: evita el coste creciente de OFFSET.
-  const result =
-    await env.DB
-      .prepare(
-        `SELECT
-           rowid AS __d1_rowid__,
-           *
-         FROM "${safeTable}"
-         WHERE rowid > ?1
-         ORDER BY rowid
-         LIMIT ?2`
-      )
-      .bind(
-        cursor,
-        limit
-      )
-      .all();
-
-
-  const rawRows =
-    result?.results ||
-    [];
-
-
-  let nextCursor =
-    cursor;
-
-
-  const rows =
-    rawRows.map(
-      raw => {
-
-        const row = {
-          ...raw
-        };
-
-
-        nextCursor =
-          Math.max(
-            nextCursor,
-            Number(
-              row.__d1_rowid__ ||
-              0
-            )
-          );
-
-
-        delete row.__d1_rowid__;
-
-
-        return row;
-
-      }
-    );
-
-
-  return {
-    ok:
-      true,
-
-    source:
-      "D1",
-
-    table,
-
-    expected:
-      allowed.expected,
-
-    cursor,
-
-    nextCursor,
-
-    returned:
-      rows.length,
-
-    done:
-      rows.length <
-      limit,
-
-    rows
-  };
-
-}
-
-
-function d1FinalExportPage() {
-
-  return new Response(
-    String.raw`<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
-  >
-
-  <title>
-    SUPER DUPAZA · Exportación final D1
-  </title>
-
-  <style>
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      background:#f4f6f8;
-      color:#101828;
-      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-    .wrap{
-      max-width:980px;
-      margin:36px auto;
-      padding:0 18px;
-    }
-    .card{
-      background:#fff;
-      border:1px solid #d0d5dd;
-      border-radius:16px;
-      padding:22px;
-      box-shadow:0 8px 28px rgba(16,24,40,.06);
-    }
-    h1{
-      margin:0 0 8px;
-      font-size:26px;
-    }
-    p{
-      color:#475467;
-      line-height:1.5;
-    }
-    .note{
-      padding:12px 14px;
-      border-radius:10px;
-      margin:14px 0;
-      background:#ecfdf3;
-      border:1px solid #abefc6;
-      color:#067647;
-      font-weight:700;
-    }
-    label{
-      display:block;
-      margin:18px 0 6px;
-      font-size:13px;
-      font-weight:800;
-    }
-    input{
-      width:100%;
-      padding:11px 12px;
-      border:1px solid #98a2b3;
-      border-radius:9px;
-      font:inherit;
-    }
-    button{
-      margin-top:14px;
-      border:0;
-      border-radius:9px;
-      padding:11px 16px;
-      font-weight:900;
-      cursor:pointer;
-      background:#111827;
-      color:#fff;
-    }
-    button:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-    }
-    pre{
-      margin-top:18px;
-      padding:14px;
-      border:1px solid #e4e7ec;
-      border-radius:10px;
-      background:#f9fafb;
-      white-space:pre-wrap;
-      overflow-wrap:anywhere;
-      min-height:180px;
-      font-size:12px;
-    }
-    .ok{color:#067647}
-    .bad{color:#b42318}
-  </style>
-</head>
-
-<body>
-
-  <main class="wrap">
-
-    <section class="card">
-
-      <h1>
-        Exportación final D1 → Supabase
-      </h1>
-
-      <p>
-        Exporta únicamente las 15 tablas que existen realmente
-        en SUPER DUPAZA.
-      </p>
-
-      <div class="note">
-        Snapshot esperado: 11339 filas.
-        El exportador verifica el conteo de cada tabla antes de descargar el JSON.
-      </div>
-
-      <label for="token">
-        D1_SYNC_TOKEN
-      </label>
-
-      <input
-        id="token"
-        type="password"
-        autocomplete="off"
-        placeholder="Pega tu token administrativo"
-      >
-
-      <button id="exportBtn">
-        EXPORTAR SNAPSHOT FINAL
-      </button>
-
-      <pre id="progress">
-Esperando exportación...
-      </pre>
-
-    </section>
-
-  </main>
-
-
-<script>
-
-const TABLES =
-  [{"name": "loaded_refs", "expected": 7031}, {"name": "manual_sap_control", "expected": 41}, {"name": "manual_zas_api_imports", "expected": 2}, {"name": "manual_zas_api_registry", "expected": 59}, {"name": "pending_name_normalization", "expected": 25}, {"name": "report_group_labels", "expected": 3}, {"name": "report_orders", "expected": 2435}, {"name": "report_type_config", "expected": 1}, {"name": "report_type_value_rules", "expected": 3}, {"name": "seller_monthly_targets", "expected": 11}, {"name": "seller_report_match", "expected": 55}, {"name": "seller_report_rule_rows", "expected": 25}, {"name": "sync_state", "expected": 18}, {"name": "zas_order_lines", "expected": 1200}, {"name": "zas_orders", "expected": 430}];
-
-const PAGE_SIZE =
-  1000;
-
-const EXPECTED_TOTAL =
-  11339;
-
-
-const tokenInput =
-  document.getElementById(
-    "token"
-  );
-
-const exportBtn =
-  document.getElementById(
-    "exportBtn"
-  );
-
-const progress =
-  document.getElementById(
-    "progress"
-  );
-
-
-function log(
-  message
-) {
-
-  progress.textContent +=
-    (
-      progress.textContent
-        .trim()
-        ? "\n"
-        : ""
-    ) +
-    message;
-
-
-  progress.scrollTop =
-    progress.scrollHeight;
-
-}
-
-
-async function fetchTable(
-  meta,
-  token
-) {
-
-  const allRows = [];
-  let cursor = 0;
-
-
-  while (true) {
-
-    const response =
-      await fetch(
-        "/api/d1/export-final-page?table=" +
-        encodeURIComponent(
-          meta.name
-        ) +
-        "&cursor=" +
-        cursor +
-        "&limit=" +
-        PAGE_SIZE +
-        "&ts=" +
-        Date.now(),
-        {
-          cache:
-            "no-store",
-
-          headers: {
-            "X-Super-Dupaza-Admin":
-              token
-          }
-        }
-      );
-
-
-    const data =
-      await response.json();
-
-
-    if (
-      !response.ok ||
-      !data.ok
-    ) {
-
-      throw new Error(
-        data.error ||
-        (
-          "HTTP " +
-          response.status
-        )
-      );
-
-    }
-
-
-    const rows =
-      Array.isArray(
-        data.rows
-      )
-        ? data.rows
-        : [];
-
-
-    allRows.push(
-      ...rows
-    );
-
-
-    log(
-      meta.name +
-      ": " +
-      allRows.length +
-      " / " +
-      meta.expected
-    );
-
-
-    if (
-      data.done ||
-      rows.length <
-        PAGE_SIZE
-    ) {
-
-      break;
-
-    }
-
-
-    if (
-      Number(
-        data.nextCursor ||
-        0
-      ) <=
-      cursor
-    ) {
-
-      throw new Error(
-        "Cursor no avanzó en " +
-        meta.name
-      );
-
-    }
-
-
-    cursor =
-      Number(
-        data.nextCursor
-      );
-
-  }
-
-
-  if (
-    allRows.length !==
-    meta.expected
-  ) {
-
-    throw new Error(
-      meta.name +
-      ": esperado " +
-      meta.expected +
-      ", exportado " +
-      allRows.length
-    );
-
-  }
-
-
-  return allRows;
-
-}
-
-
-function downloadJson(
-  payload
-) {
-
-  const blob =
-    new Blob(
-      [
-        JSON.stringify(
-          payload
-        )
-      ],
-      {
-        type:
-          "application/json"
-      }
-    );
-
-
-  const link =
-    document.createElement(
-      "a"
-    );
-
-
-  link.href =
-    URL.createObjectURL(
-      blob
-    );
-
-
-  link.download =
-    "super-dupaza-d1-final-" +
-    new Date()
-      .toISOString()
-      .slice(
-        0,
-        10
-      ) +
-    ".json";
-
-
-  document.body.appendChild(
-    link
-  );
-
-
-  link.click();
-
-
-  link.remove();
-
-
-  setTimeout(
-    () =>
-      URL.revokeObjectURL(
-        link.href
-      ),
-    30000
-  );
-
-}
-
-
-exportBtn.addEventListener(
-  "click",
-  async () => {
-
-    const token =
-      tokenInput.value
-        .trim();
-
-
-    if (!token) {
-
-      alert(
-        "Escribe D1_SYNC_TOKEN."
-      );
-
-      return;
-
-    }
-
-
-    exportBtn.disabled =
-      true;
-
-    progress.textContent =
-      "";
-
-
-    try {
-
-      const tables = {};
-      const counts = {};
-
-      let exportedTotal = 0;
-
-
-      log(
-        "Iniciando snapshot final..."
-      );
-
-
-      for (
-        const meta
-        of TABLES
-      ) {
-
-        log(
-          "Leyendo " +
-          meta.name +
-          "..."
-        );
-
-
-        const rows =
-          await fetchTable(
-            meta,
-            token
-          );
-
-
-        tables[
-          meta.name
-        ] =
-          rows;
-
-
-        counts[
-          meta.name
-        ] =
-          rows.length;
-
-
-        exportedTotal +=
-          rows.length;
-
-
-        log(
-          "✓ " +
-          meta.name +
-          ": " +
-          rows.length
-        );
-
-      }
-
-
-      if (
-        exportedTotal !==
-        EXPECTED_TOTAL
-      ) {
-
-        throw new Error(
-          "Conteo total distinto. Esperado " +
-          EXPECTED_TOTAL +
-          ", exportado " +
-          exportedTotal
-        );
-
-      }
-
-
-      const payload = {
-        format:
-          "SUPER_DUPAZA_D1_FINAL_V1",
-
-        exportedAt:
-          new Date()
-            .toISOString(),
-
-        source:
-          "Cloudflare D1",
-
-        destination:
-          "Supabase PostgreSQL / super_dupaza",
-
-        tableCount:
-          TABLES.length,
-
-        expectedTotal:
-          EXPECTED_TOTAL,
-
-        exportedTotal,
-
-        verified:
-          true,
-
-        counts,
-
-        tables
-      };
-
-
-      downloadJson(
-        payload
-      );
-
-
-      log(
-        "✓ SNAPSHOT VERIFICADO"
-      );
-
-
-      log(
-        "✓ Total: " +
-        exportedTotal +
-        " filas"
-      );
-
-
-      log(
-        "Archivo descargado. Súbelo al chat."
-      );
-
-    } catch (error) {
-
-      console.error(
-        error
-      );
-
-
-      log(
-        "ERROR: " +
-        String(
-          error?.message ||
-          error
-        )
-      );
-
-    } finally {
-
-      exportBtn.disabled =
-        false;
-
-    }
-
-  }
-);
-
-</script>
-
-</body>
-</html>`,
-    {
-      headers: {
-        "content-type":
-          "text/html; charset=utf-8",
-
-        "cache-control":
-          "no-store"
-      }
-    }
-  );
-
-}
 
 
 
@@ -15410,75 +9171,6 @@ RETURNING level, display_name`
 
 
 
-async function pgFirstRead(
-  label,
-  pgCallback,
-  d1Callback
-) {
-
-  try {
-
-    const result =
-      await pgCallback();
-
-
-    if (
-      result &&
-      typeof result === "object"
-    ) {
-
-      return {
-        ...result,
-        databasePrimary:
-          "POSTGRESQL",
-        fallbackUsed:
-          false
-      };
-
-    }
-
-
-    return result;
-
-  } catch (error) {
-
-    console.error(
-      "PG_FIRST_READ_FALLBACK",
-      label,
-      error?.message ||
-      String(error)
-    );
-
-
-    const fallback =
-      await d1Callback();
-
-
-    if (
-      fallback &&
-      typeof fallback === "object"
-    ) {
-
-      return {
-        ...fallback,
-        databasePrimary:
-          "D1_FALLBACK",
-        fallbackUsed:
-          true,
-        postgresError:
-          error?.message ||
-          String(error)
-      };
-
-    }
-
-
-    return fallback;
-
-  }
-
-}
-
 async function pgOnlyRead(
   label,
   postgresLoader
@@ -15495,9 +9187,6 @@ async function pgOnlyRead(
       "POSTGRESQL",
 
     fallbackUsed:
-      false,
-
-    d1OperationalPath:
       false,
 
     readMode:
@@ -15641,53 +9330,6 @@ DO UPDATE SET
 
     }
   );
-
-}
-
-
-async function dualReportConfigSaveLabels(
-  env,
-  body
-) {
-
-  const primary =
-    await pgReportConfigSaveLabels(
-      env,
-      body
-    );
-
-
-  try {
-
-    await reportConfigSaveLabels(
-      env,
-      body
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_REPORT_CONFIG_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
 
 }
 
@@ -15842,53 +9484,6 @@ DO UPDATE SET
 }
 
 
-async function dualSellerTargetsSave(
-  env,
-  body
-) {
-
-  const primary =
-    await pgSellerTargetsSavePrimary(
-      env,
-      body
-    );
-
-
-  try {
-
-    await sellerTargetsSave(
-      env,
-      body
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_SELLER_TARGETS_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
-
-}
-
-
 async function pgManualSapMarkPrimary(
   env,
   trackingValue
@@ -16006,53 +9601,6 @@ DO UPDATE SET
 }
 
 
-async function dualManualSapMark(
-  env,
-  trackingValue
-) {
-
-  const primary =
-    await pgManualSapMarkPrimary(
-      env,
-      trackingValue
-    );
-
-
-  try {
-
-    await manualSapMark(
-      env,
-      trackingValue
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_MANUAL_SAP_MARK_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
-
-}
-
-
 async function pgManualSapResolvePrimary(
   env,
   trackingValue
@@ -16114,53 +9662,6 @@ RETURNING tracking_code`,
 
     }
   );
-
-}
-
-
-async function dualManualSapResolve(
-  env,
-  trackingValue
-) {
-
-  const primary =
-    await pgManualSapResolvePrimary(
-      env,
-      trackingValue
-    );
-
-
-  try {
-
-    await manualSapResolve(
-      env,
-      trackingValue
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_MANUAL_SAP_RESOLVE_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
 
 }
 
@@ -16689,151 +10190,6 @@ DO UPDATE SET
 }
 
 
-async function mirrorPendingNameRuleToD1(
-  env,
-  saved
-) {
-
-  if (!env.DB) {
-    return false;
-  }
-
-
-  const now =
-    new Date().toISOString();
-
-
-  const padded =
-    [
-      ...(saved.aliases || []),
-      "",
-      "",
-      "",
-      "",
-      ""
-    ].slice(0, 5);
-
-
-  await env.DB
-    .prepare(
-`INSERT INTO pending_name_normalization (
-  id,
-  canonical_name,
-  alias1,
-  alias2,
-  alias3,
-  alias4,
-  alias5,
-  created_at,
-  updated_at
-)
-VALUES (
-  ?1,?2,?3,?4,?5,?6,?7,?8,?8
-)
-ON CONFLICT(id)
-DO UPDATE SET
-  canonical_name = excluded.canonical_name,
-  alias1 = excluded.alias1,
-  alias2 = excluded.alias2,
-  alias3 = excluded.alias3,
-  alias4 = excluded.alias4,
-  alias5 = excluded.alias5,
-  updated_at = excluded.updated_at`
-    )
-    .bind(
-      saved.id,
-      saved.canonical,
-      padded[0] || null,
-      padded[1] || null,
-      padded[2] || null,
-      padded[3] || null,
-      padded[4] || null,
-      now
-    )
-    .run();
-
-
-  await saveSellerReportRuleForNormalization(
-    env,
-    saved.id,
-    saved.kLevel,
-    saved.segment
-  );
-
-
-  await env.DB
-    .prepare(
-`UPDATE sync_state
-SET
-  last_success_at = ?1,
-  records_changed = records_changed + 1,
-  metadata_json = ?2
-WHERE source = 'NAME_NORMALIZATION'`
-    )
-    .bind(
-      now,
-      JSON.stringify({
-        lastAction:
-          "SAVE",
-        maxAliasesPerRow:
-          5
-      })
-    )
-    .run();
-
-
-  return true;
-
-}
-
-
-async function dualPendingNameRuleSave(
-  env,
-  body
-) {
-
-  const primary =
-    await pgPendingNameRuleSavePrimary(
-      env,
-      body
-    );
-
-
-  try {
-
-    await mirrorPendingNameRuleToD1(
-      env,
-      primary
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_NAME_RULE_SAVE_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
-
-}
-
-
 async function pgPendingNameRuleDeletePrimary(
   env,
   idValue
@@ -16956,53 +10312,6 @@ DO UPDATE SET
 }
 
 
-async function dualPendingNameRuleDelete(
-  env,
-  idValue
-) {
-
-  const primary =
-    await pgPendingNameRuleDeletePrimary(
-      env,
-      idValue
-    );
-
-
-  try {
-
-    await pendingNameRuleDelete(
-      env,
-      idValue
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        true
-    };
-
-  } catch (error) {
-
-    console.error(
-      "D1_MIRROR_NAME_RULE_DELETE_FAILED",
-      error?.message ||
-      String(error)
-    );
-
-    return {
-      ...primary,
-      mirroredToD1:
-        false,
-      mirrorWarning:
-        error?.message ||
-        String(error)
-    };
-
-  }
-
-}
-
-
 // ============================================================
 // POSTGRES SHADOW READS
 // ============================================================
@@ -17065,7 +10374,7 @@ function pgBuildReportFilter(
     from,
     to
   } =
-    d1RequireDateRange(
+    requireDateRange(
       params
     );
 
@@ -17794,16 +11103,6 @@ ORDER BY source`
             schedulerAgeMinutes > 12
         },
 
-        d1: {
-          rangeFrom:
-            reports.range_from ||
-            null,
-
-          rangeTo:
-            reports.range_to ||
-            null
-        },
-
         postgres: {
           rangeFrom:
             reports.range_from ||
@@ -17979,7 +11278,7 @@ ORDER BY
         if (!lines.length) {
 
           apiRows.push(
-            d1PendingJoinedToApi(
+            storedPendingJoinedToApi(
               {
                 ...order,
                 line_key: null,
@@ -18008,7 +11307,7 @@ ORDER BY
         ) {
 
           apiRows.push(
-            d1PendingJoinedToApi(
+            storedPendingJoinedToApi(
               {
                 ...order,
                 ...line
@@ -18421,8 +11720,8 @@ async function pgManualApiImportRowsPrimary(
         const pgEnv = {
           ...env,
 
-          DB:
-            makePgD1Compat(
+          PGDB:
+            makePostgresCompatDb(
               client
             )
         };
@@ -18452,8 +11751,8 @@ async function pgManualApiImportRowsPrimary(
           transactionCommitted:
             true,
 
-          d1Modified:
-            false
+          postgresOnly:
+            true
         };
 
       } catch (error) {
@@ -19329,7 +12628,7 @@ async function pgAdvisorSummary(
         from,
         to
       } =
-        d1RequireDateRange(
+        requireDateRange(
           params
         );
 
@@ -19796,7 +13095,7 @@ async function postgresSmokeTest(
       counts,
 
       note:
-        "El dashboard sigue usando D1. Esta ruta solo valida pg + Hyperdrive dentro del Worker real."
+        "El dashboard usa PostgreSQL. Esta ruta valida pg + Hyperdrive dentro del Worker real."
     };
 
   } catch (error) {
@@ -19968,567 +13267,6 @@ function hyperdriveBindingInfo(
 }
 
 
-function hyperdriveTestPage() {
-
-  return new Response(
-    String.raw`<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
-  >
-  <title>SUPER DUPAZA · Hyperdrive Test</title>
-
-  <style>
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      background:#f4f6f8;
-      color:#101828;
-      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-    .wrap{
-      max-width:820px;
-      margin:40px auto;
-      padding:0 18px;
-    }
-    .card{
-      background:#fff;
-      border:1px solid #d0d5dd;
-      border-radius:16px;
-      padding:22px;
-      box-shadow:0 8px 28px rgba(16,24,40,.06);
-    }
-    h1{margin:0 0 8px;font-size:26px}
-    p{color:#475467;line-height:1.5}
-    label{
-      display:block;
-      margin:18px 0 6px;
-      font-size:13px;
-      font-weight:800;
-    }
-    input{
-      width:100%;
-      padding:11px 12px;
-      border:1px solid #98a2b3;
-      border-radius:9px;
-      font:inherit;
-    }
-    button{
-      margin-top:14px;
-      border:0;
-      border-radius:9px;
-      padding:11px 16px;
-      font-weight:900;
-      cursor:pointer;
-      background:#111827;
-      color:#fff;
-    }
-    button:disabled{opacity:.45}
-    pre{
-      margin-top:18px;
-      padding:14px;
-      border:1px solid #e4e7ec;
-      border-radius:10px;
-      background:#f9fafb;
-      white-space:pre-wrap;
-      overflow-wrap:anywhere;
-      min-height:150px;
-      font-size:12px;
-    }
-    .note{
-      padding:12px 14px;
-      border-radius:10px;
-      background:#eff8ff;
-      border:1px solid #b2ddff;
-      color:#175cd3;
-      font-weight:700;
-    }
-  </style>
-</head>
-
-<body>
-  <main class="wrap">
-    <section class="card">
-
-      <h1>Prueba de binding Hyperdrive</h1>
-
-      <p>
-        Comprueba que el Worker ve HYPERDRIVE y recibe
-        una connectionString interna válida.
-      </p>
-
-      <div class="note">
-        Esta prueba no ejecuta SQL y no muestra contraseñas.
-        D1 continúa siendo el motor activo.
-      </div>
-
-      <label for="token">
-        D1_SYNC_TOKEN
-      </label>
-
-      <input
-        id="token"
-        type="password"
-        autocomplete="off"
-        placeholder="Pega tu token administrativo"
-      >
-
-      <button id="btn">
-        PROBAR HYPERDRIVE
-      </button>
-
-      <pre id="out">
-Esperando prueba...
-      </pre>
-
-    </section>
-  </main>
-
-
-<script>
-const token =
-  document.getElementById(
-    "token"
-  );
-
-const btn =
-  document.getElementById(
-    "btn"
-  );
-
-const out =
-  document.getElementById(
-    "out"
-  );
-
-
-btn.addEventListener(
-  "click",
-  async () => {
-
-    const value =
-      token.value
-        .trim();
-
-
-    if (!value) {
-
-      alert(
-        "Escribe D1_SYNC_TOKEN."
-      );
-
-      return;
-
-    }
-
-
-    btn.disabled =
-      true;
-
-    out.textContent =
-      "Probando binding HYPERDRIVE...";
-
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/hyperdrive-binding-test?ts=" +
-          Date.now(),
-          {
-            cache:
-              "no-store",
-
-            headers: {
-              "X-Super-Dupaza-Admin":
-                value
-            }
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      out.textContent =
-        JSON.stringify(
-          data,
-          null,
-          2
-        );
-
-    } catch (error) {
-
-      out.textContent =
-        "ERROR: " +
-        String(
-          error?.message ||
-          error
-        );
-
-    } finally {
-
-      btn.disabled =
-        false;
-
-    }
-
-  }
-);
-</script>
-
-</body>
-</html>`,
-    {
-      headers: {
-        "content-type":
-          "text/html; charset=utf-8",
-
-        "cache-control":
-          "no-store"
-      }
-    }
-  );
-
-}
-
-
-function d1AdminPage() {
-
-  return new Response(
-String.raw`<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SUPER DUPAZA · D1 Admin</title>
-<style>
-body{
-  margin:0;
-  font-family:Segoe UI,Arial,sans-serif;
-  background:#f4f6f8;
-  color:#202124;
-}
-main{
-  max-width:720px;
-  margin:50px auto;
-  padding:20px;
-}
-.card{
-  background:#fff;
-  border:1px solid #e2e6ea;
-  border-radius:14px;
-  padding:22px;
-}
-h1{margin-top:0}
-label{
-  display:block;
-  font-weight:700;
-  margin-bottom:7px;
-}
-input{
-  width:100%;
-  padding:11px;
-  border:1px solid #d0d5dd;
-  border-radius:8px;
-  box-sizing:border-box;
-}
-button{
-  margin-top:12px;
-  padding:11px 16px;
-  border:0;
-  border-radius:8px;
-  background:#f4c400;
-  font-weight:800;
-  cursor:pointer;
-}
-pre{
-  margin-top:18px;
-  padding:14px;
-  overflow:auto;
-  background:#131313;
-  color:#eee;
-  border-radius:9px;
-  min-height:120px;
-  white-space:pre-wrap;
-}
-.note{
-  color:#667085;
-  font-size:13px;
-  line-height:1.45;
-}
-</style>
-</head>
-<body>
-<main>
-<div class="card">
-<h1>SUPER DUPAZA · D1</h1>
-
-<p class="note">
-Esta pantalla ejecuta la carga inicial manual optimizada para D1 Free.
-El token se envía en un encabezado HTTP y no se guarda en la página.
-La carga completa no debe programarse cada 5 minutos. Usa “Sincronizar ahora” para probar el modo incremental.
-</p>
-
-<label for="token">D1_SYNC_TOKEN</label>
-<input id="token" type="password" autocomplete="off">
-
-<button id="testBtn">Probar D1</button>
-<button id="incrementalBtn">Sincronizar ahora</button>
-<button id="repairReportsBtn">Reparar reportes</button>
-<button id="syncBtn">Ejecutar carga inicial</button>
-
-<pre id="out">Esperando...</pre>
-</div>
-</main>
-
-<script>
-const out =
-  document.getElementById("out");
-
-document
-  .getElementById("testBtn")
-  .onclick =
-  async () => {
-
-    out.textContent =
-      "Probando conexión D1...";
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/d1/test",
-          {
-            cache:"no-store"
-          }
-        );
-
-      const data =
-        await response.json();
-
-      out.textContent =
-        JSON.stringify(
-          data,
-          null,
-          2
-        );
-
-    } catch (error) {
-
-      out.textContent =
-        String(error);
-
-    }
-
-  };
-
-
-document
-  .getElementById("incrementalBtn")
-  .onclick =
-  async () => {
-
-    const token =
-      document
-        .getElementById("token")
-        .value;
-
-    if (!token) {
-
-      out.textContent =
-        "Ingresa D1_SYNC_TOKEN.";
-
-      return;
-
-    }
-
-    out.textContent =
-      "Sincronizando cambios recientes...";
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/d1/sync/incremental?days=7",
-          {
-            method:"POST",
-
-            headers:{
-              "X-Super-Dupaza-Admin":
-                token
-            }
-          }
-        );
-
-      const data =
-        await response.json();
-
-      out.textContent =
-        JSON.stringify(
-          data,
-          null,
-          2
-        );
-
-    } catch (error) {
-
-      out.textContent =
-        String(error);
-
-    }
-
-  };
-
-
-
-document
-  .getElementById("repairReportsBtn")
-  .onclick =
-  async () => {
-
-    const token =
-      document
-        .getElementById("token")
-        .value;
-
-    if (!token) {
-
-      out.textContent =
-        "Ingresa D1_SYNC_TOKEN.";
-
-      return;
-
-    }
-
-
-    out.textContent =
-      "Reparando report_orders desde zas_orders + loaded_refs...";
-
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/d1/report-repair",
-          {
-            method:
-              "POST",
-
-            headers: {
-              "X-Super-Dupaza-Admin":
-                token
-            }
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      out.textContent =
-        JSON.stringify(
-          data,
-          null,
-          2
-        );
-
-
-    } catch (error) {
-
-      out.textContent =
-        String(error);
-
-    }
-
-  };
-
-
-document
-  .getElementById("syncBtn")
-  .onclick =
-  async () => {
-
-    const token =
-      document
-        .getElementById("token")
-        .value;
-
-    if (!token) {
-
-      out.textContent =
-        "Ingresa D1_SYNC_TOKEN.";
-
-      return;
-
-    }
-
-    if (
-      !confirm(
-        "¿Ejecutar la carga inicial completa a D1?"
-      )
-    ) {
-      return;
-    }
-
-    out.textContent =
-      "Sincronizando ZasConnect + BO/VT hacia D1...";
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/d1/sync/full",
-          {
-            method:"POST",
-
-            headers:{
-              "X-Super-Dupaza-Admin":
-                token
-            }
-          }
-        );
-
-      const data =
-        await response.json();
-
-      out.textContent =
-        JSON.stringify(
-          data,
-          null,
-          2
-        );
-
-    } catch (error) {
-
-      out.textContent =
-        String(error);
-
-    }
-
-  };
-</script>
-</body>
-</html>`,
-    {
-      headers: {
-        "content-type":
-          "text/html; charset=UTF-8",
-
-        "cache-control":
-          "no-store"
-      }
-    }
-  );
-
-}
-
-
 
 function simpleHash(
   value
@@ -20664,7 +13402,7 @@ function jsonChunksByBytes(
 
 
 
-async function d1BulkInsertJson(
+async function bulkInsertRowsCompat(
   db,
   table,
   columns,
@@ -20793,151 +13531,9 @@ FROM json_each(?1)`;
 
 
 
-async function d1BatchChunks(
-  db,
-  statements,
-  chunkSize = 40
-) {
-
-  let batches =
-    0;
 
 
-  for (
-    let i = 0;
-    i < statements.length;
-    i += chunkSize
-  ) {
-
-    const chunk =
-      statements.slice(
-        i,
-        i +
-        chunkSize
-      );
-
-
-    if (!chunk.length) {
-      continue;
-    }
-
-
-    await db.batch(
-      chunk
-    );
-
-
-    batches++;
-
-  }
-
-
-  return batches;
-
-}
-
-
-
-async function d1Test(
-  env
-) {
-
-  if (!env.DB) {
-
-    return {
-      ok: false,
-
-      error:
-        "El Worker todavía no tiene un binding D1 llamado DB."
-    };
-
-  }
-
-
-  const [
-    orders,
-    lines,
-    refs,
-    reports,
-    sync
-  ] =
-    await Promise.all([
-
-      env.DB
-        .prepare(
-          "SELECT COUNT(*) AS n FROM zas_orders"
-        )
-        .first(),
-
-      env.DB
-        .prepare(
-          "SELECT COUNT(*) AS n FROM zas_order_lines"
-        )
-        .first(),
-
-      env.DB
-        .prepare(
-          "SELECT COUNT(*) AS n FROM loaded_refs"
-        )
-        .first(),
-
-      env.DB
-        .prepare(
-          "SELECT COUNT(*) AS n FROM report_orders"
-        )
-        .first(),
-
-      env.DB
-        .prepare(
-          "SELECT source,last_success_at,range_from,range_to,records_seen,records_changed,last_error FROM sync_state ORDER BY source"
-        )
-        .all()
-
-    ]);
-
-
-  return {
-    ok: true,
-
-    binding:
-      "DB",
-
-    counts: {
-      zas_orders:
-        Number(
-          orders?.n ||
-          0
-        ),
-
-      zas_order_lines:
-        Number(
-          lines?.n ||
-          0
-        ),
-
-      loaded_refs:
-        Number(
-          refs?.n ||
-          0
-        ),
-
-      report_orders:
-        Number(
-          reports?.n ||
-          0
-        )
-    },
-
-    sync_state:
-      sync?.results ||
-      []
-  };
-
-}
-
-
-
-function groupZasForD1(
+function groupZasRows(
   apiRows
 ) {
 
@@ -21269,7 +13865,7 @@ function groupZasForD1(
         // MUY IMPORTANTE:
         // Number(null) y Number("") devuelven 0.
         // Eso provocaba que varias filas de Excel con Línea vacía
-        // terminaran todas con line_key = "LN:0" y D1 conservara
+        // terminaran todas con line_key = "LN:0" y PostgreSQL conservara
         // solamente la última.
         const lineNumber =
           lineNumberText !==
@@ -21417,7 +14013,7 @@ function groupZasForD1(
 
 
 
-function buildLoadedRefsForD1(
+function buildLoadedRefs(
   detail
 ) {
 
@@ -21745,7 +14341,7 @@ function buildLoadedRefsForD1(
 
 
 
-function buildReportRowsForD1(
+function buildReportRows(
   apiRows,
   detail
 ) {
@@ -21832,575 +14428,6 @@ function buildReportRowsForD1(
 
 }
 
-
-
-async function syncFullToD1(
-  env
-) {
-
-  if (!env.DB) {
-
-    throw new Error(
-      "Falta el binding D1 llamado DB."
-    );
-
-  }
-
-
-  const startedAt =
-    new Date()
-      .toISOString();
-
-
-  await env.DB
-    .prepare(
-      `UPDATE sync_state
-       SET last_started_at = ?1,
-           last_error = NULL
-       WHERE source IN ('ZASCONNECT','BO_VT','REPORTS')`
-    )
-    .bind(
-      startedAt
-    )
-    .run();
-
-
-  try {
-
-    // La carga inicial ignora el cache actual.
-    const [
-      apps,
-      zas
-    ] =
-      await Promise.all([
-
-        fetchAppsScript(
-          env,
-          "all"
-        ),
-
-        getZasOrders(
-          env
-        )
-
-      ]);
-
-
-    const bo =
-      Array.isArray(
-        apps.bo
-      )
-        ? apps.bo
-        : [];
-
-
-    const vt =
-      Array.isArray(
-        apps.vt
-      )
-        ? apps.vt
-        : [];
-
-
-    const physicalSellerSegments =
-      await getPhysicalSellerSegmentMap(
-        env
-      );
-
-
-    const detail =
-      buildDetail(
-        bo,
-        vt,
-        physicalSellerSegments
-      );
-
-
-    const zasData =
-      groupZasForD1(
-        zas
-      );
-
-
-    const loadedRefs =
-      buildLoadedRefsForD1(
-        detail
-      );
-
-
-    const reportRows =
-      buildReportRowsForD1(
-        zas,
-        detail
-      );
-
-
-    const now =
-      new Date()
-        .toISOString();
-
-
-    // CARGA INICIAL:
-    // todavía los reportes públicos usan el sistema anterior.
-    // Por eso es seguro reconstruir D1 desde cero en esta fase.
-    await env.DB.batch([
-
-      env.DB.prepare(
-        "DELETE FROM report_orders"
-      ),
-
-      env.DB.prepare(
-        "DELETE FROM loaded_refs"
-      ),
-
-      env.DB.prepare(
-        "DELETE FROM zas_order_lines"
-      ),
-
-      env.DB.prepare(
-        "DELETE FROM zas_orders"
-      )
-
-    ]);
-
-
-    // --------------------------------------------------------
-    // ESCRITURA MASIVA OPTIMIZADA PARA D1 FREE
-    //
-    // En lugar de una consulta D1 por fila, pasamos arreglos JSON
-    // y usamos json_each() dentro de SQLite/D1.
-    // --------------------------------------------------------
-
-    const writeStats = {
-      deleteQueries: 4,
-      zasOrdersQueries: 0,
-      zasLinesQueries: 0,
-      loadedRefsQueries: 0,
-      reportOrdersQueries: 0,
-      syncStateQueries: 0
-    };
-
-
-    const ordersWrite =
-      await d1BulkInsertJson(
-        env.DB,
-        "zas_orders",
-        [
-          "tracking_code",
-          "customer_tracking_code",
-          "tax_id",
-          "customer_name",
-          "primary_phone",
-          "secondary_phone",
-          "seller_name",
-          "shipping_municipality",
-          "shipping_reference",
-          "custom_rcf",
-          "sales_channel",
-          "shipping_department",
-          "order_date",
-          "comments",
-          "warehouse",
-          "order_total",
-          "shipping_avenue",
-          "shipping_house_number",
-          "shipping_zone",
-          "custom_bodega",
-          "custom_canal",
-          "custom_payment_method",
-          "custom_marca",
-          "source_hash",
-          "source_updated_at",
-          "synced_at"
-        ],
-        zasData.orders.map(
-          row => ({
-            ...row,
-            synced_at:
-              now
-          })
-        ),
-        {
-          replace:
-            true
-        }
-      );
-
-
-    writeStats.zasOrdersQueries =
-      ordersWrite.queries;
-
-
-    const linesWrite =
-      await d1BulkInsertJson(
-        env.DB,
-        "zas_order_lines",
-        [
-          "tracking_code",
-          "line_key",
-          "line_number",
-          "sku",
-          "description",
-          "quantity",
-          "brand",
-          "location_code",
-          "ring_code",
-          "unit_price",
-          "line_total",
-          "source_hash",
-          "synced_at"
-        ],
-        zasData.lines.map(
-          row => ({
-            ...row,
-            synced_at:
-              now
-          })
-        ),
-        {
-          replace:
-            true
-        }
-      );
-
-
-    writeStats.zasLinesQueries =
-      linesWrite.queries;
-
-
-    const refsWrite =
-      await d1BulkInsertJson(
-        env.DB,
-        "loaded_refs",
-        [
-          "tracking_code",
-          "is_loaded",
-          "is_pdv",
-          "has_bo",
-          "has_vt",
-          "report_date",
-          "route",
-          "channel",
-          "group_name",
-          "bo_amount",
-          "vt_amount",
-          "chosen_amount",
-          "source_hash",
-          "synced_at"
-        ],
-        loadedRefs.map(
-          row => ({
-            ...row,
-            synced_at:
-              now
-          })
-        ),
-        {
-          replace:
-            true
-        }
-      );
-
-
-    writeStats.loadedRefsQueries =
-      refsWrite.queries;
-
-
-    const reportsWrite =
-      await d1BulkInsertJson(
-        env.DB,
-        "report_orders",
-        [
-          "tracking_code",
-          "report_date",
-          "advisor",
-          "seller_original",
-          "order_type",
-          "group_name",
-          "level",
-          "channel",
-          "amount",
-          "source",
-          "source_hash",
-          "synced_at"
-        ],
-        reportRows.map(
-          row => ({
-            ...row,
-            synced_at:
-              now
-          })
-        ),
-        {
-          replace:
-            true
-        }
-      );
-
-
-    writeStats.reportOrdersQueries =
-      reportsWrite.queries;
-
-
-    const reportDates =
-      reportRows
-        .map(
-          row =>
-            row.report_date
-        )
-        .filter(Boolean)
-        .sort();
-
-
-    const minDate =
-      reportDates[0] ||
-      null;
-
-
-    const maxDate =
-      reportDates[
-        reportDates.length -
-        1
-      ] ||
-      null;
-
-
-    const zasMeta =
-      JSON.stringify({
-        apiLines:
-          zas.length,
-
-        orders:
-          zasData.orders.length,
-
-        lines:
-          zasData.lines.length
-      });
-
-
-    const boVtMeta =
-      JSON.stringify({
-        lastImport:
-          apps.lastImport ||
-          null,
-
-        sourceModified:
-          apps.sourceModified ||
-          null,
-
-        boRows:
-          bo.length,
-
-        vtRows:
-          vt.length,
-
-        loadedRefs:
-          loadedRefs.length,
-
-        pdvBlankTrackingSupport:
-          1,
-
-        pdvAdvisorIdentitySupport:
-          1,
-
-        manualPhysicalSegmentSupport:
-          1,
-
-        staleSourceCleanupV1:
-          1,
-
-        pendingNormalizationDoesNotRenameReports:
-          1,
-
-        syntheticPdvRefs:
-          loadedRefs.filter(
-            row =>
-              String(
-                row.tracking_code ||
-                ""
-              )
-                .startsWith(
-                  "PDV-NOID|"
-                )
-          )
-            .length
-      });
-
-
-    const reportMeta =
-      JSON.stringify({
-        reportOrders:
-          reportRows.length
-      });
-
-
-    await env.DB.batch([
-
-      env.DB
-        .prepare(
-`UPDATE sync_state
- SET last_success_at = ?1,
-     range_from = ?2,
-     range_to = ?3,
-     records_seen = ?4,
-     records_changed = ?5,
-     metadata_json = ?6,
-     last_error = NULL
- WHERE source = 'ZASCONNECT'`
-        )
-        .bind(
-          now,
-          minDate,
-          maxDate,
-          zasData.orders.length,
-          zasData.orders.length,
-          zasMeta
-        ),
-
-      env.DB
-        .prepare(
-`UPDATE sync_state
- SET last_success_at = ?1,
-     range_from = ?2,
-     range_to = ?3,
-     records_seen = ?4,
-     records_changed = ?5,
-     metadata_json = ?6,
-     last_error = NULL
- WHERE source = 'BO_VT'`
-        )
-        .bind(
-          now,
-          minDate,
-          maxDate,
-          detail.length,
-          loadedRefs.length,
-          boVtMeta
-        ),
-
-      env.DB
-        .prepare(
-`UPDATE sync_state
- SET last_success_at = ?1,
-     range_from = ?2,
-     range_to = ?3,
-     records_seen = ?4,
-     records_changed = ?5,
-     metadata_json = ?6,
-     last_error = NULL
- WHERE source = 'REPORTS'`
-        )
-        .bind(
-          now,
-          minDate,
-          maxDate,
-          reportRows.length,
-          reportRows.length,
-          reportMeta
-        )
-
-    ]);
-
-
-    writeStats.syncStateQueries =
-      3;
-
-
-    writeStats.totalD1QueriesEstimated =
-      writeStats.deleteQueries +
-      writeStats.zasOrdersQueries +
-      writeStats.zasLinesQueries +
-      writeStats.loadedRefsQueries +
-      writeStats.reportOrdersQueries +
-      writeStats.syncStateQueries;
-
-
-    return {
-      ok: true,
-
-      mode:
-        "FULL_BOOTSTRAP",
-
-      startedAt,
-
-      finishedAt:
-        now,
-
-      source: {
-        zasConnectApiLines:
-          zas.length,
-
-        boRows:
-          bo.length,
-
-        vtRows:
-          vt.length
-      },
-
-      d1: {
-        zas_orders:
-          zasData.orders.length,
-
-        zas_order_lines:
-          zasData.lines.length,
-
-        loaded_refs:
-          loadedRefs.length,
-
-        report_orders:
-          reportRows.length
-      },
-
-      d1QueryUsage:
-        writeStats,
-
-      reportRange: {
-        from:
-          minDate,
-
-        to:
-          maxDate
-      },
-
-      note:
-        "Carga inicial completada. Los reportes públicos todavía siguen usando la lógica anterior hasta validar D1."
-    };
-
-
-  } catch (error) {
-
-    const message =
-      String(
-        error?.stack ||
-        error
-      );
-
-
-    const failedAt =
-      new Date()
-        .toISOString();
-
-
-    await env.DB
-      .prepare(
-`UPDATE sync_state
- SET last_error = ?1
- WHERE source IN ('ZASCONNECT','BO_VT','REPORTS')`
-      )
-      .bind(
-        message.slice(
-          0,
-          4000
-        )
-      )
-      .run();
-
-
-    throw error;
-
-  }
-
-}
 
 
 // ============================================================
@@ -22951,7 +14978,7 @@ async function getZasOrders(env) {
     await fetchZasPage(
       cookie,
       1,
-      25
+      zasPageSize(env)
     );
 
 
@@ -23089,336 +15116,9 @@ async function getZasOrders(env) {
 // DIAGNÓSTICO TEMPORAL DEL API ZASCONNECT
 // ============================================================
 
-async function debugZasExport(env) {
-
-  const cookie =
-    await loginZasConnect(
-      env
-    );
-
-
-  const first =
-    await fetchZasPage(
-      cookie,
-      1,
-      25
-    );
-
-
-  const pageSize =
-    Number(
-      first.pagination?.pageSize ||
-      25
-    ) ||
-    25;
-
-
-  const total =
-    Number(
-      first.pagination?.total ||
-      0
-    ) ||
-    0;
-
-
-  const totalPages =
-    total > 0
-      ? Math.max(
-          1,
-          Math.ceil(
-            total /
-            pageSize
-          )
-        )
-      : 1;
-
-
-  const rows =
-    await getZasOrders(
-      env
-    );
-
-
-  const parsedDateCounts = {};
-
-  const rawDateCounts = {};
-
-  const requestedDates =
-    new Set([
-      "2026-10-01",
-      "2026-10-03",
-      "2026-10-04"
-    ]);
-
-
-  const targetTrackings = [];
-
-
-  for (
-    const row
-    of rows
-  ) {
-
-    const rawDate =
-      String(
-        row?.orderDate ??
-        ""
-      )
-        .trim();
-
-
-    const parsed =
-      dateOnly(
-        rawDate
-      );
-
-
-    if (rawDate) {
-
-      rawDateCounts[
-        rawDate
-      ] =
-        (
-          rawDateCounts[
-            rawDate
-          ] ||
-          0
-        ) +
-        1;
-
-    }
-
-
-    if (parsed) {
-
-      parsedDateCounts[
-        parsed
-      ] =
-        (
-          parsedDateCounts[
-            parsed
-          ] ||
-          0
-        ) +
-        1;
-
-
-      if (
-        requestedDates.has(
-          parsed
-        )
-      ) {
-
-        targetTrackings.push({
-          trackingCode:
-            row?.trackingCode ??
-            null,
-
-          sellerName:
-            row?.sellerName ??
-            null,
-
-          rawOrderDate:
-            rawDate,
-
-          parsedOrderDate:
-            parsed,
-
-          orderTotal:
-            row?.orderTotal ??
-            null
-        });
-
-      }
-
-    }
-
-  }
-
-
-  const parsedDates =
-    Object.keys(
-      parsedDateCounts
-    )
-      .sort();
-
-
-  return {
-    ok: true,
-
-    pagination: {
-      pageSize,
-      total,
-      totalPages
-    },
-
-    rowsReceivedAllPages:
-      rows.length,
-
-    minParsedDate:
-      parsedDates[0] ||
-      null,
-
-    maxParsedDate:
-      parsedDates[
-        parsedDates.length -
-        1
-      ] ||
-      null,
-
-    requestedDates: {
-      "2026-10-01":
-        parsedDateCounts[
-          "2026-10-01"
-        ] ||
-        0,
-
-      "2026-10-03":
-        parsedDateCounts[
-          "2026-10-03"
-        ] ||
-        0,
-
-      "2026-10-04":
-        parsedDateCounts[
-          "2026-10-04"
-        ] ||
-        0
-    },
-
-    parsedDateCounts,
-
-    rawDateCounts,
-
-    targetSamples:
-      targetTrackings
-        .slice(
-          0,
-          50
-        )
-  };
-
-}
-
-
 // ============================================================
 // CACHE DE FUENTES
 // ============================================================
-
-async function getSources(
-  env,
-  ctx,
-  force = false
-) {
-
-  const cache =
-    /** @type {any} */
-    (caches).default;
-
-
-  const key =
-    new Request(
-      "https://super-dupaza.internal/source-cache-final-v2"
-    );
-
-
-  if (!force) {
-
-    const hit =
-      await cache.match(
-        key
-      );
-
-
-    if (hit) {
-
-      return await hit.json();
-
-    }
-
-  }
-
-
-  const [
-    apps,
-    zas
-  ] =
-    await Promise.all([
-      fetchAppsScript(
-        env,
-        "all"
-      ),
-
-      getZasOrders(
-        env
-      )
-    ]);
-
-
-  const payload = {
-
-    bo:
-      Array.isArray(
-        apps.bo
-      )
-        ? apps.bo
-        : [],
-
-    vt:
-      Array.isArray(
-        apps.vt
-      )
-        ? apps.vt
-        : [],
-
-    zas,
-
-    appsStatus: {
-      ok: true,
-
-      lastImport:
-        apps.lastImport ??
-        null
-    },
-
-    generatedAt:
-      new Date()
-        .toISOString()
-
-  };
-
-
-  const response =
-    new Response(
-      JSON.stringify(
-        payload
-      ),
-      {
-        headers: {
-
-          "content-type":
-            "application/json",
-
-          "cache-control":
-            `public, max-age=${SOURCE_CACHE_SECONDS}`
-
-        }
-      }
-    );
-
-
-  ctx.waitUntil(
-    cache.put(
-      key,
-      response
-    )
-  );
-
-
-  return payload;
-
-}
-
 
 // ============================================================
 // NORMALIZACIÓN
@@ -23982,81 +15682,6 @@ function normalizePendingSeller(
 }
 
 
-function bestPendingDepartment(value) {
-
-  const raw =
-    String(value ?? "")
-      .trim();
-
-
-  const input =
-    normalizeGeoMatchText(
-      raw
-    );
-
-
-  if (!input) {
-
-    return {
-      value: raw,
-      score: 0
-    };
-
-  }
-
-
-  let best =
-    raw;
-
-  let bestScore =
-    0;
-
-
-  for (
-    const department
-    of PENDING_DEPARTMENTS
-  ) {
-
-    const score =
-      similarityRatio(
-        input,
-        normalizeGeoMatchText(
-          department
-        )
-      );
-
-
-    if (
-      score >
-      bestScore
-    ) {
-
-      bestScore =
-        score;
-
-      best =
-        department;
-
-    }
-
-
-    if (
-      score === 1
-    ) {
-      break;
-    }
-
-  }
-
-
-  return {
-    value: best,
-    score: bestScore
-  };
-
-}
-
-
 
 function exactPendingDepartment(
   value
@@ -24458,7 +16083,7 @@ async function getPhysicalSellerSegmentMap(
 
 
   const result =
-    await env.DB
+    await env.PGDB
       .prepare(
 `SELECT
   n.canonical_name,
@@ -26463,852 +18088,23 @@ function buildNotLoadedOptions(
 // FILTROS REPORTES
 // ============================================================
 
-function applyDateFilter(
-  rows,
-  params
-) {
-
-  const from =
-    params.get(
-      "date_from"
-    );
-
-
-  const to =
-    params.get(
-      "date_to"
-    );
-
-
-  return rows.filter(
-    row => {
-
-      if (
-        from &&
-        (
-          !row.date ||
-          row.date <
-          from
-        )
-      ) {
-
-        return false;
-
-      }
-
-
-      if (
-        to &&
-        (
-          !row.date ||
-          row.date >
-          to
-        )
-      ) {
-
-        return false;
-
-      }
-
-
-      return true;
-
-    }
-  );
-
-}
-
-
-
-function applyReportFilters(
-  rows,
-  params
-) {
-
-  const dateFiltered =
-    applyDateFilter(
-      rows,
-      params
-    );
-
-
-  const group =
-    params.get(
-      "group"
-    ) ||
-    "";
-
-
-  const advisor =
-    params.get(
-      "advisor"
-    ) ||
-    "";
-
-
-  const type =
-    params.get(
-      "type"
-    ) ||
-    "";
-
-
-  const source =
-    params.get(
-      "source"
-    ) ||
-    "";
-
-
-  return dateFiltered.filter(
-    row => {
-
-      if (
-        group &&
-        row.group !==
-        group
-      ) {
-
-        return false;
-
-      }
-
-
-      if (
-        advisor &&
-        row.advisor !==
-        advisor
-      ) {
-
-        return false;
-
-      }
-
-
-      if (
-        type &&
-        row.type !==
-        type
-      ) {
-
-        return false;
-
-      }
-
-
-      if (
-        source &&
-        row.source !==
-        source
-      ) {
-
-        return false;
-
-      }
-
-
-      return true;
-
-    }
-  );
-
-}
-
-
-
-function buildReportOptions(
-  rows
-) {
-
-  const unique =
-    values =>
-      [
-        ...new Set(
-          values
-            .filter(Boolean)
-        )
-      ]
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            String(a)
-              .localeCompare(
-                String(b),
-                "es"
-              )
-        );
-
-
-  const dates =
-    rows
-      .map(
-        row =>
-          row.date
-      )
-      .filter(Boolean)
-      .sort();
-
-
-  return {
-
-    groups:
-      unique(
-        rows.map(
-          row =>
-            row.group
-        )
-      ),
-
-    advisors:
-      unique(
-        rows.map(
-          row =>
-            row.advisor
-        )
-      ),
-
-    types:
-      unique(
-        rows.map(
-          row =>
-            row.type
-        )
-      ),
-
-    sources:
-      unique(
-        rows.map(
-          row =>
-            row.source
-        )
-      ),
-
-    minDate:
-      dates[0] ||
-      null,
-
-    maxDate:
-      dates[
-        dates.length -
-        1
-      ] ||
-      null
-
-  };
-
-}
 
 
 // ============================================================
 // MATRIZ
 // ============================================================
 
-function buildMatrix(base) {
-
-  const groups = [
-    "K1 PISO",
-    "K2 DIGITAL Y K2",
-    "K3"
-  ];
-
-
-  const result = [];
-
-
-  for (
-    const group
-    of groups
-  ) {
-
-    const row = {
-
-      grupo:
-        group,
-
-      DIGITAL:
-        0,
-
-      PETAPA:
-        0,
-
-      XENACOJ:
-        0,
-
-      TOTAL:
-        0
-
-    };
-
-
-    for (
-      const item
-      of base.filter(
-        value =>
-          value.group ===
-          group
-      )
-    ) {
-
-      if (
-        CHANNELS.includes(
-          item.channel
-        )
-      ) {
-
-        row[
-          item.channel
-        ] +=
-          item.amount;
-
-      }
-
-    }
-
-
-    row.DIGITAL =
-      round2(
-        row.DIGITAL
-      );
-
-
-    row.PETAPA =
-      round2(
-        row.PETAPA
-      );
-
-
-    row.XENACOJ =
-      round2(
-        row.XENACOJ
-      );
-
-
-    row.TOTAL =
-      round2(
-        row.DIGITAL +
-        row.PETAPA +
-        row.XENACOJ
-      );
-
-
-    result.push(
-      row
-    );
-
-  }
-
-
-  result.push({
-
-    grupo:
-      "RESUMEN",
-
-    DIGITAL:
-      round2(
-        sum(
-          result.map(
-            row =>
-              row.DIGITAL
-          )
-        )
-      ),
-
-    PETAPA:
-      round2(
-        sum(
-          result.map(
-            row =>
-              row.PETAPA
-          )
-        )
-      ),
-
-    XENACOJ:
-      round2(
-        sum(
-          result.map(
-            row =>
-              row.XENACOJ
-          )
-        )
-      ),
-
-    TOTAL:
-      round2(
-        sum(
-          result.map(
-            row =>
-              row.TOTAL
-          )
-        )
-      )
-
-  });
-
-
-  return result;
-
-}
-
-
 // ============================================================
 // GRÁFICO DIARIO
 // ============================================================
-
-function buildDailyChart(
-  base
-) {
-
-  const grouped =
-    new Map();
-
-
-  for (
-    const row
-    of base
-  ) {
-
-    if (!row.date) {
-      continue;
-    }
-
-
-    if (
-      !grouped.has(
-        row.date
-      )
-    ) {
-
-      grouped.set(
-        row.date,
-        {
-
-          date:
-            row.date,
-
-          K1:
-            0,
-
-          K2:
-            0,
-
-          K3:
-            0
-
-        }
-      );
-
-    }
-
-
-    grouped
-      .get(
-        row.date
-      )[
-        row.level
-      ] +=
-      row.amount;
-
-  }
-
-
-  return [
-    ...grouped.values()
-  ]
-    .sort(
-      (
-        a,
-        b
-      ) =>
-        a.date.localeCompare(
-          b.date
-        )
-    )
-    .map(
-      row => {
-
-        const total =
-          row.K1 +
-          row.K2 +
-          row.K3;
-
-
-        return {
-
-          date:
-            row.date,
-
-          K1:
-            total
-              ? round2(
-                  row.K1 /
-                  total *
-                  100
-                )
-              : 0,
-
-          K2:
-            total
-              ? round2(
-                  row.K2 /
-                  total *
-                  100
-                )
-              : 0,
-
-          K3:
-            total
-              ? round2(
-                  row.K3 /
-                  total *
-                  100
-                )
-              : 0,
-
-          amountK1:
-            round2(
-              row.K1
-            ),
-
-          amountK2:
-            round2(
-              row.K2
-            ),
-
-          amountK3:
-            round2(
-              row.K3
-            ),
-
-          total:
-            round2(
-              total
-            )
-
-        };
-
-      }
-    );
-
-}
-
 
 // ============================================================
 // KPI RESUMEN
 // ============================================================
 
-function buildSummaryKpis(
-  base
-) {
-
-  const zas =
-    sum(
-      base
-        .filter(
-          row =>
-            row.source ===
-            "ZASCONNECT"
-        )
-        .map(
-          row =>
-            row.amount
-        )
-    );
-
-
-  const pdvExtra =
-    sum(
-      base
-        .filter(
-          row =>
-            row.source ===
-            "PDV BO/VT"
-        )
-        .map(
-          row =>
-            row.amount
-        )
-    );
-
-
-  return {
-
-    zasConnect:
-      round2(
-        zas
-      ),
-
-    pdvAdded:
-      round2(
-        pdvExtra
-      ),
-
-    total:
-      round2(
-        zas +
-        pdvExtra
-      ),
-
-    orders:
-      base.length
-
-  };
-
-}
-
-
 // ============================================================
 // RESUMEN POR ASESOR
 // ============================================================
-
-function buildAdvisorSummary(
-  base
-) {
-
-  const map =
-    new Map();
-
-
-  for (
-    const row
-    of base
-  ) {
-
-    if (
-      !map.has(
-        row.advisor
-      )
-    ) {
-
-      map.set(
-        row.advisor,
-        {
-
-          ASESOR:
-            row.advisor,
-
-          MONTO:
-            0,
-
-          DIGITAL:
-            0,
-
-          PETAPA:
-            0,
-
-          XENACOJ:
-            0
-
-        }
-      );
-
-    }
-
-
-    const obj =
-      map.get(
-        row.advisor
-      );
-
-
-    if (
-      CHANNELS.includes(
-        row.channel
-      )
-    ) {
-
-      obj[
-        row.channel
-      ] +=
-        row.amount;
-
-    }
-
-
-    obj.MONTO +=
-      row.amount;
-
-  }
-
-
-  const rows =
-    [
-      ...map.values()
-    ]
-      .map(
-        row => ({
-
-          ASESOR:
-            row.ASESOR,
-
-          MONTO:
-            round2(
-              row.MONTO
-            ),
-
-          DIGITAL:
-            round2(
-              row.DIGITAL
-            ),
-
-          PETAPA:
-            round2(
-              row.PETAPA
-            ),
-
-          XENACOJ:
-            round2(
-              row.XENACOJ
-            )
-
-        })
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          b.MONTO -
-          a.MONTO ||
-          a.ASESOR.localeCompare(
-            b.ASESOR,
-            "es"
-          )
-      );
-
-
-  rows.push({
-
-    ASESOR:
-      "TOTAL",
-
-    MONTO:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.MONTO
-          )
-        )
-      ),
-
-    DIGITAL:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.DIGITAL
-          )
-        )
-      ),
-
-    PETAPA:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.PETAPA
-          )
-        )
-      ),
-
-    XENACOJ:
-      round2(
-        sum(
-          rows.map(
-            row =>
-              row.XENACOJ
-          )
-        )
-      )
-
-  });
-
-
-  return rows;
-
-}
-
-
-
-function buildAdvisorKpis(
-  base
-) {
-
-  return {
-
-    advisors:
-      new Set(
-        base.map(
-          row =>
-            row.advisor
-        )
-      )
-        .size,
-
-    total:
-      round2(
-        sum(
-          base.map(
-            row =>
-              row.amount
-          )
-        )
-      ),
-
-    digital:
-      round2(
-        sum(
-          base
-            .filter(
-              row =>
-                row.channel ===
-                "DIGITAL"
-            )
-            .map(
-              row =>
-                row.amount
-            )
-        )
-      ),
-
-    petapa:
-      round2(
-        sum(
-          base
-            .filter(
-              row =>
-                row.channel ===
-                "PETAPA"
-            )
-            .map(
-              row =>
-                row.amount
-            )
-        )
-      ),
-
-    xenacoj:
-      round2(
-        sum(
-          base
-            .filter(
-              row =>
-                row.channel ===
-                "XENACOJ"
-            )
-            .map(
-              row =>
-                row.amount
-            )
-        )
-      )
-
-  };
-
-}
 
 
 // ============================================================
@@ -29790,7 +20586,7 @@ tbody tr:hover td{
       ></span>
 
       <b>
-        ZasConnect D1:
+        ZasConnect PostgreSQL:
       </b>
 
       <span id="zasStatus">
@@ -29816,7 +20612,7 @@ tbody tr:hover td{
     <span>
 
       <b>
-        D1 sincronizado:
+        PostgreSQL sincronizado:
       </b>
 
       <span id="workerUpdated">
@@ -31427,7 +22223,7 @@ tbody tr:hover td{
 
     <div class="name-rule-help">
       <strong>Seguro contra duplicados:</strong>
-      si el Tracking pedido ya existe realmente en ZasConnect/D1, el importador lo omite.
+      si el Tracking pedido ya existe realmente en ZasConnect/PostgreSQL, el importador lo omite.
       Si es una orden previamente importada manualmente, permite actualizarla.
       El Total pedido se contabiliza una sola vez aunque existan varias líneas de producto.
     </div>
@@ -31470,7 +22266,7 @@ tbody tr:hover td{
       id="manualApiImportStatus"
       class="manual-api-import-status"
     >
-      Selecciona un archivo .xlsx para validarlo antes de escribir en D1.
+      Selecciona un archivo .xlsx para validarlo antes de escribir en PostgreSQL.
     </div>
 
 
@@ -31485,10 +22281,10 @@ tbody tr:hover td{
       <button
         id="manualApiImportBtn"
         class="primary"
-        onclick="importManualApiToD1()"
+        onclick="importManualApiToPostgres()"
         disabled
       >
-        IMPORTAR A D1
+        IMPORTAR A POSTGRESQL
       </button>
     </div>
 
@@ -34694,7 +25490,7 @@ async function openManualApiImport() {
   ) {
 
     status.textContent =
-      "Selecciona un archivo .xlsx para validarlo antes de escribir en D1.";
+      "Selecciona un archivo .xlsx para validarlo antes de escribir en PostgreSQL.";
 
   }
 
@@ -36096,7 +26892,7 @@ async function readManualApiExcel(
       orders.length +
       " órdenes únicas / " +
       rows.length +
-      " líneas. Revisa la vista previa y pulsa IMPORTAR A D1.";
+      " líneas. Revisa la vista previa y pulsa IMPORTAR A POSTGRESQL.";
 
 
     button.disabled =
@@ -36132,7 +26928,7 @@ async function readManualApiExcel(
 }
 
 
-async function importManualApiToD1() {
+async function importManualApiToPostgres() {
 
   if (
     !manualApiImportRows.length ||
@@ -36164,7 +26960,7 @@ async function importManualApiToD1() {
       manualApiImportSummary.orders +
       " órdenes / " +
       manualApiImportSummary.lines +
-      " líneas a D1? Los tracking que ya existan por API se omitirán."
+      " líneas a PostgreSQL? Los tracking que ya existan por API se omitirán."
     )
   ) {
     return;
@@ -36186,7 +26982,7 @@ async function importManualApiToD1() {
     true;
 
   status.textContent =
-    "Importando a D1 y reconstruyendo reportes...";
+    "Importando a PostgreSQL y reconstruyendo reportes...";
 
 
   try {
@@ -36267,7 +27063,7 @@ async function importManualApiToD1() {
 
 
     showNotice(
-      "Excel importado a D1 correctamente.",
+      "Excel importado a PostgreSQL correctamente.",
       "ok"
     );
 
@@ -37788,7 +28584,7 @@ function renderNotLoaded() {
       window.__SUPER_DUPAZA_PENDING_DIAGNOSTICS__?.pendingProductLines !==
         undefined
         ? (
-            " · D1 líneas: " +
+            " · PostgreSQL líneas: " +
             integer.format(
               Number(
                 window.__SUPER_DUPAZA_PENDING_DIAGNOSTICS__
@@ -41152,7 +31948,7 @@ async function refreshView() {
 
 
     showNotice(
-      "Vista actualizada desde D1.",
+      "Vista actualizada desde PostgreSQL.",
       "ok"
     );
 
@@ -41210,7 +32006,7 @@ async function refreshView() {
 
 
     showNotice(
-      "D1 listo. Al completar la fecha final se ejecutará la primera consulta automáticamente.",
+      "PostgreSQL listo. Al completar la fecha final se ejecutará la primera consulta automáticamente.",
       "ok"
     );
 
