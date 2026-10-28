@@ -1,90 +1,44 @@
-# SUPER DUPAZA 5.26.6 — D1 aislado del camino operativo
+# SUPER DUPAZA 5.26.7 — D1 binding eliminado
 
-## Estado
-PostgreSQL/Supabase pasa a ser el único motor operativo de la aplicación.
+## Estado final de la migración
+El Worker ya no declara ni recibe el binding `DB -> D1 super-dupaza`.
 
-### PostgreSQL-only
-- /api/source/status
-- /api/not-loaded
-- /api/report-config
-- /api/report-config/labels
-- /api/name-normalization/list
-- /api/name-normalization/save
-- /api/name-normalization/delete
-- /api/seller-targets
-- /api/seller-targets/save
-- /api/manual-api-import/list
-- /api/manual-api-import
-- /api/manual-sap/list
-- /api/manual-sap/mark
-- /api/manual-sap/resolve
-- /api/summary
-- /api/advisor-summary
-- /api/report-options
-- Queue sync
-- Cron sync
+Motor operativo:
 
-## Importador manual
-El importador Excel/API ahora ejecuta dentro de una transacción PostgreSQL:
+Cloudflare Worker -> pg -> Hyperdrive -> Supabase PostgreSQL -> schema super_dupaza
 
-BEGIN
--> lógica de importación
--> report_orders
--> COMMIT
+## Se conserva
+- HYPERDRIVE -> super-dupaza
+- SUPER_DUPAZA_SYNC_QUEUE -> super-dupaza-sync
+- Queue consumer
+- Cron */5 * * * *
+- Cron 17 12 * * *
+- variables y secretos remotos mediante deploy --keep-vars
 
-Si falla:
-ROLLBACK
-
-Respuesta incluye:
-- engine: POSTGRESQL
-- via: HYPERDRIVE
-- transactionCommitted: true
-- d1Modified: false
-
-## D1 retirado
-Todas las rutas:
+## D1
+Las rutas legacy continúan respondiendo HTTP 410 Gone:
 - /api/d1/*
 - /d1-admin
 - /d1-export-final
 
-responden HTTP 410 Gone.
+El código histórico D1 puede permanecer temporalmente dentro de index.js, pero no tiene binding ni rutas operativas que lo ejecuten.
 
-## Binding DB
-Todavía se conserva EN ESTA FASE solamente para confirmar que ninguna ruta operativa lo necesita.
-
-No borrarlo manualmente todavía.
-
-## Auditoría
+## Auditoría final
 GET /api/postgres-runtime-audit
-Header:
-X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>
 
 Esperado:
 - ok = true
+- phase = 5.26.7
 - engine = POSTGRESQL
+- hyperdrivePresent = true
+- d1BindingStillPresent = false
 - d1OperationalReads = false
 - d1OperationalWrites = false
 - d1QueueSync = false
 - d1CronSync = false
 - manualApiImporter = POSTGRESQL
 - legacyD1Routes = 410_GONE
-- readyForFinalDbBindingRemovalTest = true
+- migrationComplete = true
 
-## Validación de ruta retirada
-Abrir:
-GET /api/d1/test
-
-Debe devolver HTTP 410 con:
-retired: true
-engine: POSTGRESQL
-
-## Cron
-Se mantienen:
-- */5 * * * *
-- 17 12 * * *
-
-## Próxima fase
-5.26.7:
-- eliminar binding DB de wrangler.toml
-- desplegar sin D1
-- validar dashboard + Queue + Cron
+## Importante
+No borrar todavía la base D1 desde Cloudflare. Primero validar una ejecución automática Cron con esta versión sin binding DB.

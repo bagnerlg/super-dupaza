@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA FASE 5.26.6 - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA FASE 5.26.7 - D1 BINDING REMOVED - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 // SUPER DUPAZA D1 - FASE 5.24 REPORT UX + METAS
 // Base: Fase 5.23.2 Queue Diagnostic. Mantiene Cron -> Queue -> Consumer.
 
@@ -942,7 +942,7 @@ export default {
 
         return json({
           ok: true,
-          phase: "5.26.6",
+          phase: "5.26.7",
           engine: "POSTGRESQL",
           hyperdrivePresent: Boolean(env.HYPERDRIVE),
           d1BindingStillPresent: Boolean(env.DB),
@@ -952,7 +952,9 @@ export default {
           d1CronSync: false,
           manualApiImporter: "POSTGRESQL",
           legacyD1Routes: "410_GONE",
-          readyForFinalDbBindingRemovalTest: true
+          readyForFinalDbBindingRemovalTest: true,
+          migrationComplete: !env.DB,
+          d1BindingExpected: false
         });
 
       }

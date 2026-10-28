@@ -3,11 +3,6 @@ main = "src/index.js"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "super-dupaza"
-database_id = "563340a2-a9d6-4bf4-9471-cf67d37413c7"
-
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "9a533ddbf55b40d9ba75af7d92a91828"
