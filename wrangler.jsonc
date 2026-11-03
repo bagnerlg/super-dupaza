@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "datosform",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": true,
+
+  "kv_namespaces": [
+    {
+      "binding": "CREDIZAS_KV",
+      "id": "687ee918c3874967b00d1f1898103cfb"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "CREDIZAS_FILES",
+      "bucket_name": "datosform-credizas-files"
+    }
+  ],
+
+  "vars": {
+    "OPENAI_MODEL": "gpt-5.4-mini",
+    "IMAGE_DETAIL": "high",
+    "PDF_DETAIL": "high",
+    "VENDEDORES_JSON": "[]",
+
+    "R2_QUOTA_ENABLED": "true",
+    "R2_MAX_STORAGE_BYTES": "8000000000",
+    "R2_MAX_CLASS_A_31D": "800000",
+    "R2_MAX_CLASS_B_31D": "8000000"
+  }
+}
