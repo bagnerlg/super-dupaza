@@ -1,78 +1,23 @@
-# SUPER DUPAZA 5.27.1 — ZasConnect Stable Auth
+# CrediZas V22.3.2.2
 
-## Problema corregido
+Base: ZIP V22.2 proporcionado por el usuario (`credizas-worker-completo-v22.2(1).zip`).
 
-El Worker usaba el login web de ZasConnect mediante un `Next-Action` de Next.js.
+Corrección crítica respecto a V22.3.2:
+- Se restauró/definió `searchCases()` antes de registrar los listeners del buscador del vendedor.
+- Esto evita que el JavaScript se detenga antes de ejecutar `loadSellerOptions()` y corrige la pantalla que quedaba en “Cargando vendedores…”.
 
-Los IDs de Server Actions pueden cambiar entre builds. Cuando eso ocurre:
+Se conservan los cambios funcionales de V22.3.2:
+- OCR de aprobación final del banco.
+- Imágenes de cuotas temporales: se leen con Tesseract y no se guardan en R2.
+- Administración/eliminación de archivos por el administrador.
+- Reemplazo controlado de aprobación bancaria y reinicio de etapas dependientes cuando corresponde.
 
-- login devuelve HTTP 409
-- body: `Server Action unavailable.`
-- Queue entra en `QUEUE_ERROR`
-- PostgreSQL deja de recibir ventas nuevas
+Infraestructura:
+- `package.json` idéntico a V22.2 proporcionada.
+- `wrangler.jsonc` idéntico a V22.2 proporcionada.
+- No requiere variables, bindings ni secrets nuevos.
 
-## Estrategia 5.27.1
 
-SUPER DUPAZA acepta dos modos:
-
-### 1. BEARER_TOKEN — recomendado
-
-Secret de Cloudflare:
-
-`ZAS_EXPORT_TOKEN`
-
-El Worker llama directamente:
-
-`GET https://zasconnect.zashome.com.gt/api/orders/export-data?...`
-
-con:
-
-`Authorization: Bearer <ZAS_EXPORT_TOKEN>`
-
-No hace login web.
-No usa `crm_session`.
-No usa `ZAS_NEXT_ACTION`.
-
-### 2. LEGACY_SERVER_ACTION — compatibilidad temporal
-
-Si `ZAS_EXPORT_TOKEN` NO existe, conserva:
-
-- ZAS_LOGIN_EMAIL
-- ZAS_LOGIN_PASSWORD
-- ZAS_NEXT_ACTION
-
-Si la Action está vencida ahora devuelve un error explícito:
-
-`ZASCONNECT_LEGACY_ACTION_STALE`
-
-## Endpoint de diagnóstico
-
-GET `/api/zasconnect-auth-test`
-
-Header:
-
-`X-Super-Dupaza-Admin: <D1_SYNC_TOKEN>`
-
-Respuesta esperada final:
-
-```json
-{
-  "ok": true,
-  "source": "ZASCONNECT",
-  "authMode": "BEARER_TOKEN"
-}
-```
-
-## Cambio requerido en ZasConnect
-
-El endpoint existente `/api/orders/export-data` debe aceptar un token de servicio
-además de la sesión humana actual.
-
-Ver:
-
-`zasconnect-patch/IMPLEMENTACION.md`
-
-## Importante
-
-No reutilizar `D1_SYNC_TOKEN`.
-Crear un token distinto y de alta entropía para esta integración.
+## Corrección V22.3.2
+- Corrige Paso 3 del administrador detenido en “Cargando estado…”.
+- El administrador de archivos ahora usa listas de documentos disponibles en el frontend y no funciones exclusivas del backend.
