@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-// SUPER DUPAZA 5.27.1 - ZASCONNECT STABLE AUTH - POSTGRESQL + HYPERDRIVE - SYNC OPTIMIZADO - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
+// SUPER DUPAZA 5.27.3 - ZASCONNECT STABLE AUTH + ALERTAS AL COPIAR + COPIADO ALINEADO - POSTGRESQL + HYPERDRIVE - SYNC OPTIMIZADO - POSTGRESQL ONLY APP PATH - POSTGRES PRIMARY READS + DUAL CONTROL WRITES - IMPORTADOR EXCEL API MANUAL / BO+VT PDV / DEDUPE / HOVER
 
 const APPS_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbzl3e1CdxI_zc1sboZv8h7d0GJ-vOXDWoGnI5y72ESQrESNZAiuHnDnB-kp4nxo1Zy3vQ/exec";
@@ -940,7 +940,7 @@ export default {
 
         return json({
           ok: true,
-          phase: "5.27.1",
+          phase: "5.27.2",
           engine: "POSTGRESQL",
           hyperdrivePresent: Boolean(env.HYPERDRIVE),
           d1BindingStillPresent: false,
@@ -19598,6 +19598,98 @@ tbody tr:hover td{
 
 
 /* ----------------------------------------------------------
+   ÓRDENES NO CARGADAS - UNIDADES MÚLTIPLES POR SKU
+   Solo presentación: jamás modifica ni redondea la cantidad.
+   La alerta de unidades tiene prioridad sobre el color de fecha.
+   ---------------------------------------------------------- */
+
+#ordersBody td.pending-multi-quantity,
+#ordersBody tr.pending-old-order td.pending-multi-quantity,
+#ordersBody tr.pending-old-order.child-row td.pending-multi-quantity{
+  background:#ffe09b !important;
+  color:#78350f !important;
+  box-shadow:inset 0 0 0 2px #d97706;
+  font-weight:900;
+}
+
+#ordersBody td.pending-multi-sku,
+#ordersBody tr.pending-old-order td.pending-multi-sku,
+#ordersBody tr.pending-old-order.child-row td.pending-multi-sku{
+  background:#fff0c2 !important;
+  color:#78350f !important;
+  box-shadow:inset 3px 0 0 #d97706;
+  font-weight:800;
+}
+
+#ordersBody td.pending-multi-quantity:hover,
+#ordersBody td.pending-multi-sku:hover{
+  background:#ffd278 !important;
+}
+
+.pending-multi-quantity .pending-qty-alert{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  width:100%;
+  height:100%;
+  font-size:clamp(10px,.92vw,14px);
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.pending-qty-icon{
+  font-size:clamp(9px,.85vw,13px);
+  line-height:1;
+}
+
+#ordersBody .pending-parent-toggle{
+  border:1px solid #94a3b8;
+  background:#f8fafc;
+  color:#475569;
+  padding:3px 5px;
+  border-radius:6px;
+  font-size:10px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+#ordersBody .pending-parent-toggle.is-parent{
+  border-color:#0f766e;
+  background:#ccfbf1;
+  color:#115e59;
+  font-weight:800;
+}
+#ordersBody .pending-parent-toggle:hover{
+  background:#e0f2fe;
+}
+.pending-copy-hint{
+  font-size:11px;
+  color:#475569;
+  margin:5px 0 7px;
+}
+.pending-copy-column{
+  cursor:copy;
+}
+.pending-copy-column .pending-copy-icon{
+  font-size:10px;
+  opacity:.7;
+  margin-left:3px;
+}
+.pending-copy-column:hover{
+  background:#dbeafe !important;
+}
+
+.pending-multi-legend{
+  display:inline-block;
+  padding:3px 7px;
+  border-radius:999px;
+  border:1px solid #d97706;
+  background:#fff0c2;
+  color:#78350f;
+  font-weight:900;
+}
+
+/* ----------------------------------------------------------
    ÓRDENES NO CARGADAS - PEDIDOS QUE NO SON DE HOY (GUATEMALA)
    ---------------------------------------------------------- */
 
@@ -20970,6 +21062,14 @@ tbody tr:hover td{
 
           <button
             class="light"
+            onclick="copyPendingParentQuantities()"
+            title="Copia las cantidades de líneas principales conservando un salto de fila por cada hijo visible. No copia cantidades de hijos."
+          >
+            📋 CANTIDADES PADRE
+          </button>
+
+          <button
+            class="light"
             onclick="exportNotLoadedExcel()"
           >
             ⬇ EXCEL
@@ -21095,6 +21195,12 @@ tbody tr:hover td{
         class="small muted"
         style="margin-bottom:8px"
       >
+      </div>
+      <div class="pending-copy-hint">
+        Toca una cantidad para copiarla y quitar su alerta. Pulsa <strong>CANTIDADES PADRE</strong>
+        para pegar los valores principales con líneas hijas vacías; si existe otro artículo
+        padre dentro del mismo pedido, márcalo con <strong>+ PADRE</strong> en la columna Control.
+        También puedes tocar el encabezado de una columna para copiarla completa y alineada.
       </div>
 
 
@@ -22591,6 +22697,110 @@ let sellerTargetRows = [];
 let manualApiImportRows = [];
 let manualApiImportSummary = null;
 let manualApiImportFileName = "";
+
+// Las marcas de copiado son SOLO de interfaz y duran la sesión del navegador.
+// La clave incluye tracking, línea, SKU y cantidad; si cambia la cantidad
+// se restablece la advertencia automáticamente.
+const PENDING_COPIED_QTY_STORAGE =
+  "superDupaza.pendingCopiedQuantities.v1";
+const PENDING_EXTRA_PARENT_STORAGE =
+  "superDupaza.pendingExtraParents.v1";
+
+function pendingLoadSessionSet(storageKey) {
+  try {
+    const values = JSON.parse(sessionStorage.getItem(storageKey) || "[]");
+    return new Set(Array.isArray(values) ? values.filter(v => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function pendingSaveSessionSet(storageKey, values) {
+  try {
+    sessionStorage.setItem(storageKey, JSON.stringify([...values].slice(-5000)));
+  } catch {
+    // Nunca se interrumpe el copiado si el navegador bloquea sessionStorage.
+  }
+}
+
+const pendingCopiedQuantities = pendingLoadSessionSet(PENDING_COPIED_QTY_STORAGE);
+const pendingExtraParents = pendingLoadSessionSet(PENDING_EXTRA_PARENT_STORAGE);
+
+function pendingUiLineKey(row) {
+  return [row?.trackingCode, row?._lineKey || row?.lineNumber || row?.sku, row?.sku]
+    .map(value => encodeURIComponent(String(value ?? "")))
+    .join("|");
+}
+
+function pendingUiQtyKey(row) {
+  return pendingUiLineKey(row) + "|" + encodeURIComponent(String(row?.quantity ?? ""));
+}
+
+function pendingIsParent(row) {
+  return Boolean(row?._firstOrderRow || pendingExtraParents.has(pendingUiLineKey(row)));
+}
+
+function pendingNeedsUnitReview(row) {
+  return pendingHasMultipleUnits(row?.quantity) &&
+    !pendingCopiedQuantities.has(pendingUiQtyKey(row));
+}
+
+function pendingCopyValuesWithSpaces(rows, key, onlyParents) {
+  // join con saltos reales: las celdas vacías intermedias no se eliminan.
+  // La cantidad de filas del portapapeles coincide con la tabla visible.
+  return rows.map(row => {
+    if (onlyParents && !pendingIsParent(row)) return "";
+    return String(row?.[key] ?? "");
+  }).join("\n");
+}
+
+function pendingRememberCopiedQuantities(rows) {
+  for (const row of rows) {
+    if (row && row.quantity !== null && row.quantity !== undefined &&
+        String(row.quantity).trim() !== "") {
+      pendingCopiedQuantities.add(pendingUiQtyKey(row));
+    }
+  }
+  pendingSaveSessionSet(PENDING_COPIED_QTY_STORAGE, pendingCopiedQuantities);
+  renderNotLoaded();
+}
+
+async function copyPendingParentQuantities() {
+  if (!visibleOrderRows.length) {
+    copyToast("No hay líneas visibles para copiar");
+    return;
+  }
+  const parents = visibleOrderRows.filter(row => pendingIsParent(row));
+  if (!parents.length) {
+    copyToast("No hay líneas principales visibles. Revisa los filtros.");
+    return;
+  }
+  const text = pendingCopyValuesWithSpaces(visibleOrderRows, "quantity", true);
+  const blankCount = visibleOrderRows.length - parents.length;
+  if (await copyText(text,
+    "Copiadas " + parents.length + " cantidades padre y " + blankCount + " filas vacías")) {
+    pendingRememberCopiedQuantities(parents);
+  }
+}
+
+async function copyPendingVisibleColumn(key) {
+  const column = visiblePendingColumns().find(item => item.key === key);
+  if (!column || !visibleOrderRows.length) return;
+  const orderLevelKeys = new Set([
+    "customerTrackingCode", "taxId", "customerName", "primaryPhone",
+    "secondaryPhone", "sellerName", "shippingMunicipality", "shippingReference",
+    "custom_rcf", "salesChannel", "shippingDepartment", "orderDate", "comments",
+    "trackingCode", "warehouse", "orderTotal", "shippingAvenue",
+    "shippingHouseNumber", "shippingZone", "custom_bodega", "custom_canal",
+    "custom_payment_method", "custom_marca"
+  ]);
+  const onlyParents = orderLevelKeys.has(key);
+  const text = pendingCopyValuesWithSpaces(visibleOrderRows, key, onlyParents);
+  if (await copyText(text,
+    "Columna " + column.label + " copiada (" + visibleOrderRows.length + " filas alineadas)")) {
+    if (key === "quantity") pendingRememberCopiedQuantities(visibleOrderRows);
+  }
+}
 
 const PENDING_FIELDS_STORAGE =
   "superDupaza.pendingFields.v2";
@@ -24135,16 +24345,17 @@ function attachPendingCellInteractions() {
 
         cell.addEventListener(
           "click",
-          () => {
-
-            copyText(
-              decodeURIComponent(
-                cell.dataset.copy ||
-                ""
-              ),
+          async () => {
+            const copied = await copyText(
+              decodeURIComponent(cell.dataset.copy || ""),
               cell.dataset.copyMessage
             );
-
+            // La alerta desaparece solo si se copió la CANTIDAD de esta línea.
+            if (copied && cell.dataset.columnKey === "quantity") {
+              const lineKey = decodeURIComponent(cell.dataset.pendingLineKey || "");
+              const row = visibleOrderRows.find(item => pendingUiLineKey(item) === lineKey);
+              if (row) pendingRememberCopiedQuantities([row]);
+            }
           }
         );
 
@@ -24204,6 +24415,22 @@ function attachPendingCellInteractions() {
 
       }
     );
+
+  document.querySelectorAll("#ordersHead th[data-copy-column]")
+    .forEach(head => head.addEventListener("click", () => {
+      copyPendingVisibleColumn(head.dataset.copyColumn);
+    }));
+
+  document.querySelectorAll("#ordersBody button[data-parent-toggle]")
+    .forEach(button => button.addEventListener("click", event => {
+      event.stopPropagation();
+      const key = decodeURIComponent(button.dataset.parentToggle || "");
+      if (!key) return;
+      if (pendingExtraParents.has(key)) pendingExtraParents.delete(key);
+      else pendingExtraParents.add(key);
+      pendingSaveSessionSet(PENDING_EXTRA_PARENT_STORAGE, pendingExtraParents);
+      renderNotLoaded();
+    }));
 
 }
 
@@ -27787,59 +28014,31 @@ async function copyText(
 
 
   if (!text) {
-    return;
+    return false;
   }
 
-
+  let copied = false;
   try {
-
-    await navigator.clipboard
-      .writeText(
-        text
-      );
-
+    await navigator.clipboard.writeText(text);
+    copied = true;
   } catch {
-
-    const ta =
-      document.createElement(
-        "textarea"
-      );
-
-
-    ta.value =
-      text;
-
-
-    ta.style.position =
-      "fixed";
-
-
-    ta.style.opacity =
-      "0";
-
-
-    document.body.appendChild(
-      ta
-    );
-
-
-    ta.select();
-
-
-    document.execCommand(
-      "copy"
-    );
-
-
-    ta.remove();
-
+    const ta = document.createElement("textarea");
+    try {
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      copied = Boolean(document.execCommand("copy"));
+    } catch {
+      copied = false;
+    } finally {
+      ta.remove();
+    }
   }
 
-
-  copyToast(
-    message ||
-    "Valor copiado"
-  );
+  copyToast(copied ? (message || "Valor copiado") : "No se pudo copiar. Intenta de nuevo.");
+  return copied;
 
 }
 
@@ -28332,6 +28531,31 @@ function isPendingOrderFromAnotherDay(
 
 
 
+// Indicador operativo: cantidades superiores a una unidad por SKU.
+// No representa una validación contra la composición maestra del combo.
+function pendingHasMultipleUnits(
+  quantity
+) {
+
+  if (
+    quantity === null ||
+    quantity === undefined ||
+    String(quantity).trim() === ""
+  ) {
+    return false;
+  }
+
+  const units =
+    Number(quantity);
+
+  return (
+    Number.isFinite(units) &&
+    units > 1
+  );
+
+}
+
+
 function pendingCellTitle(
   row,
   key
@@ -28676,6 +28900,12 @@ function renderNotLoaded() {
     );
 
 
+  const multipleUnitLines =
+    visibleOrderRows.filter(
+      row => pendingNeedsUnitReview(row)
+    ).length;
+
+
   const oldOrderTrackings =
     new Set(
       visibleOrderRows
@@ -28711,6 +28941,18 @@ function renderNotLoaded() {
       orderRows.length
     ) +
     (
+      multipleUnitLines
+        ? (
+            ' · <span class="pending-multi-legend" ' +
+            'title="Cada línea marcada tiene más de 1 unidad; verificar al cargar en SAP">' +
+            '⚠ ' +
+            integer.format(multipleUnitLines) +
+            ' línea(s) con varias unidades: revisar cantidad en SAP' +
+            '</span>'
+          )
+        : ""
+    ) +
+    (
       oldOrderTrackings.size
         ? (
             ' · <span class="old-order-legend">' +
@@ -28737,7 +28979,7 @@ function renderNotLoaded() {
           )
         : ""
     ) +
-    " · UI 5.25.1";
+    " · UI 5.27.3";
 
 
   const columns =
@@ -28752,11 +28994,11 @@ function renderNotLoaded() {
     columns
       .map(
         column =>
-          "<th>" +
-          esc(
-            column.label
-          ) +
-          "</th>"
+          '<th class="pending-copy-column" data-copy-column="' +
+          esc(column.key) +
+          '" title="Copiar columna completa con filas alineadas; campos generales dejan vacíos los hijos">' +
+          esc(column.label) +
+          '<span class="pending-copy-icon" aria-hidden="true">⧉</span></th>' 
       )
       .join(
         ""
@@ -28819,6 +29061,10 @@ function renderNotLoaded() {
             };
 
 
+          const multipleUnits =
+            pendingNeedsUnitReview(row);
+
+
           const oldOrder =
             isPendingOrderFromAnotherDay(
               row,
@@ -28877,6 +29123,16 @@ function renderNotLoaded() {
             columns
               .map(
                 column => {
+
+                  const multiQtyCell =
+                    multipleUnits &&
+                    column.key === "quantity";
+
+
+                  const multiSkuCell =
+                    multipleUnits &&
+                    column.key === "sku";
+
 
                   let raw =
                     row[
@@ -28992,8 +29248,38 @@ function renderNotLoaded() {
                   }
 
 
+                  if (multiQtyCell) {
+
+                    fullValue =
+                      "⚠ REVISAR UNIDADES: " +
+                      String(display) +
+                      " unidades de este SKU. Al cargar el pedido en SAP, " +
+                      "usar la cantidad indicada (no asumir 1).";
+
+                  }
+
+
+                  const cellContent =
+                    multiQtyCell
+                      ? (
+                          '<span class="pending-qty-alert">' +
+                          '<span class="pending-qty-icon" aria-hidden="true">⚠</span>' +
+                          '<span>' + esc(display) + '</span>' +
+                          '</span>'
+                        )
+                      : esc(display);
+
+
                   return (
                     '<td ' +
+                    (multiQtyCell
+                      ? 'class="pending-multi-quantity" '
+                      : multiSkuCell
+                        ? 'class="pending-multi-sku" '
+                        : '') +
+                    'data-column-key="' + esc(column.key) + '" ' +
+                    'data-pending-line-key="' +
+                    encodeURIComponent(pendingUiLineKey(row)) + '" ' +
                     'data-copy="' +
                     encodeURIComponent(
                       String(
@@ -29011,9 +29297,7 @@ function renderNotLoaded() {
                       message
                     ) +
                     '">' +
-                    esc(
-                      display
-                    ) +
+                    cellContent +
                     "</td>"
                   );
 
@@ -29053,7 +29337,14 @@ function renderNotLoaded() {
                         linePosition.total
                       )
                     ) +
-                    '</span>' +
+                    '</span> ' +
+                    '<button type="button" class="pending-parent-toggle' +
+                    (pendingIsParent(row) ? ' is-parent' : '') +
+                    '" data-parent-toggle="' +
+                    encodeURIComponent(pendingUiLineKey(row)) +
+                    '" title="Marcar como otro artículo padre dentro del pedido SOLO para copiado alineado">' +
+                    (pendingIsParent(row) ? '✓ PADRE' : '+ PADRE') +
+                    '</button>' +
                     '</td>'
                   )
             ) +
@@ -30948,6 +31239,8 @@ async function exportNotLoadedExcel() {
           exportRows.push({
             tracking,
             isFirst,
+            needsUnitReview:
+              pendingNeedsUnitReview(row),
             hasChildren:
               groupRows.length >
               1,
@@ -31302,6 +31595,47 @@ async function exportNotLoadedExcel() {
           }
 
         }
+
+      }
+
+      // Atención visual también en Excel. Conservamos el valor
+      // numérico original para que SAP/Excel reciban las unidades reales.
+      if (
+        item.needsUnitReview &&
+        quantityColumnIndex > 0
+      ) {
+
+        const quantityCell =
+          excelRow.getCell(quantityColumnIndex);
+
+        quantityCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFFE09B" }
+        };
+
+        quantityCell.font = {
+          ...quantityCell.font,
+          bold: true,
+          color: { argb: "FF78350F" }
+        };
+
+        quantityCell.alignment = {
+          ...quantityCell.alignment,
+          horizontal: "center"
+        };
+
+        quantityCell.border = {
+          ...quantityCell.border,
+          left: {
+            style: "medium",
+            color: { argb: "FFD97706" }
+          },
+          right: {
+            style: "medium",
+            color: { argb: "FFD97706" }
+          }
+        };
 
       }
 
